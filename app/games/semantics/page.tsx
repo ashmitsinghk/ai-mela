@@ -3,6 +3,9 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useSemanticSimilarity } from './hooks/useSemanticSimilarity';
 import { Trophy, RefreshCw, Loader2 } from 'lucide-react';
+import { supabase } from '@/utils/supabase';
+
+type GamePhase = 'AUTH' | 'BET' | 'PLAYING' | 'RESULT';
 
 interface Word {
   id: number;
@@ -152,6 +155,12 @@ const SIMILARITY_THRESHOLD = 0.45; // 45% similarity required
 export default function SemanticClearGame() {
   const { isReady, isLoading, progress, error, calculateSimilarity } = useSemanticSimilarity();
   
+  // --- AUTH & USER STATE ---
+  const [gamePhase, setGamePhase] = useState<GamePhase>('AUTH');
+  const [uid, setUid] = useState('');
+  const [playerData, setPlayerData] = useState<{ name: string | null; stonks: number } | null>(null);
+  const [authLoading, setAuthLoading] = useState(false);
+  
   const [words, setWords] = useState<Word[]>([]);
   const [inputValue, setInputValue] = useState<string>('');
   const [score, setScore] = useState<number>(0);
@@ -164,6 +173,68 @@ export default function SemanticClearGame() {
   const gameLoopRef = useRef<number | null>(null);
   const spawnIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const nextWordId = useRef<number>(0);
+  const lastLifeLossTime = useRef<number>(0);
+
+  // --- AUTH & DEDUCTION ---
+  const checkPlayer = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setAuthLoading(true);
+    try {
+      const { data, error } = await supabase
+        .from('players')
+        .select('name, stonks')
+        .eq('uid', uid)
+        .single();
+
+      if (error || !data) {
+        alert('Player not found!');
+        setPlayerData(null);
+      } else {
+        setPlayerData(data);
+        setGamePhase('BET');
+      }
+    } finally {
+      setAuthLoading(false);
+    }
+  };
+
+  const payAndStart = async () => {
+    if (!playerData || playerData.stonks < 20) {
+      alert('Insufficient Stonks!');
+      return;
+    }
+    setAuthLoading(true);
+
+    const { error: updateError } = await supabase
+      .from('players')
+      .update({ stonks: playerData.stonks - 20 })
+      .eq('uid', uid);
+
+    if (updateError) {
+      alert('Transaction Failed');
+      setAuthLoading(false);
+      return;
+    }
+
+    // Log Entry
+    await supabase.from('game_logs').insert({
+      player_uid: uid,
+      game_title: 'Semantic Clear',
+      result: 'PLAYING',
+      stonks_change: -20
+    });
+
+    setPlayerData({ ...playerData, stonks: playerData.stonks - 20 });
+    setGamePhase('PLAYING');
+    setAuthLoading(false);
+  };
+
+  const resetToAuth = () => {
+    setGamePhase('AUTH');
+    setUid('');
+    setPlayerData(null);
+    restartGame();
+  };
 
   const getRandomWord = useCallback((): string => {
     return WORD_POOL[Math.floor(Math.random() * WORD_POOL.length)];
@@ -197,25 +268,31 @@ export default function SemanticClearGame() {
       );
 
       if (collidedWords.length > 0) {
-        // Lose 1 life for each word that hits bottom
-        setLives((prevLives) => {
-          const newLives = prevLives - collidedWords.length;
-          if (newLives <= 0) {
-            setGameOver(true);
-            // Cancel the next frame immediately
-            if (gameLoopRef.current) {
-              cancelAnimationFrame(gameLoopRef.current);
-              gameLoopRef.current = null;
+        // Only lose life if at least 500ms has passed since last life loss (prevents double triggers)
+        const now = Date.now();
+        if (now - lastLifeLossTime.current > 500) {
+          lastLifeLossTime.current = now;
+          
+          // Lose only 1 life per frame, regardless of how many words hit bottom
+          setLives((prevLives) => {
+            const newLives = prevLives - 1;
+            if (newLives <= 0) {
+              setGameOver(true);
+              // Cancel the next frame immediately
+              if (gameLoopRef.current) {
+                cancelAnimationFrame(gameLoopRef.current);
+                gameLoopRef.current = null;
+              }
             }
-          }
-          return Math.max(0, newLives);
-        });
+            return Math.max(0, newLives);
+          });
+          
+          // Reset streak on collision
+          setStreak(0);
+          setBlazeMode(false);
+        }
         
-        // Reset streak on collision
-        setStreak(0);
-        setBlazeMode(false);
-        
-        // Remove collided words
+        // Remove ALL collided words immediately to prevent multi-frame triggers
         return updatedWords.filter(
           (word) => word.y < WORD_BOTTOM_THRESHOLD
         );
@@ -308,10 +385,77 @@ export default function SemanticClearGame() {
     setInputValue('');
     setFeedback('');
     nextWordId.current = 0;
-  }, []);
+    
+    // Stay in PLAYING phase for rematch
+    if (gamePhase === 'RESULT') {
+      setGamePhase('PLAYING');
+    }
+  }, [gamePhase]);
+
+  // Calculate dynamic stonks based on score tiers
+  const calculateStonks = (score: number): number => {
+    let stonks = 0;
+    
+    // 100-500 points: 2 stonks per 100 points
+    if (score >= 100) {
+      const tier1Points = Math.min(score, 500);
+      stonks += Math.floor(tier1Points / 100) * 2;
+    }
+    
+    // 500-1000 points: 4 stonks per 100 points
+    if (score > 500) {
+      const tier2Points = Math.min(score - 500, 500);
+      stonks += Math.floor(tier2Points / 100) * 4;
+    }
+    
+    // 1000-2000 points: 8 stonks per 100 points
+    if (score > 1000) {
+      const tier3Points = Math.min(score - 1000, 1000);
+      stonks += Math.floor(tier3Points / 100) * 8;
+    }
+    
+    // 2000+ points: 16 stonks per 100 points
+    if (score > 2000) {
+      const tier4Points = score - 2000;
+      stonks += Math.floor(tier4Points / 100) * 16;
+    }
+    
+    return stonks;
+  };
+
+  // Game over: Log result and award stonks
+  useEffect(() => {
+    if (gameOver && gamePhase === 'PLAYING') {
+      const handleGameOver = async () => {
+        setGamePhase('RESULT');
+        
+        // Award stonks based on dynamic tier system
+        const stonksEarned = calculateStonks(score);
+        
+        if (playerData && stonksEarned > 0) {
+          await supabase
+            .from('players')
+            .update({ stonks: playerData.stonks + stonksEarned })
+            .eq('uid', uid);
+          
+          setPlayerData({ ...playerData, stonks: playerData.stonks + stonksEarned });
+        }
+        
+        // Log game result
+        await supabase.from('game_logs').insert({
+          player_uid: uid,
+          game_title: 'Semantic Clear',
+          result: 'COMPLETED',
+          stonks_change: stonksEarned
+        });
+      };
+      
+      handleGameOver();
+    }
+  }, [gameOver, gamePhase, score, playerData, uid]);
 
   useEffect(() => {
-    if (isReady && !gameOver) {
+    if (isReady && !gameOver && gamePhase === 'PLAYING') {
       gameLoopRef.current = requestAnimationFrame(gameLoop);
       spawnIntervalRef.current = setInterval(spawnWord, SPAWN_INTERVAL);
       spawnWord(); // Initial word
@@ -321,8 +465,102 @@ export default function SemanticClearGame() {
       if (gameLoopRef.current) cancelAnimationFrame(gameLoopRef.current);
       if (spawnIntervalRef.current) clearInterval(spawnIntervalRef.current);
     };
-  }, [isReady, gameOver, gameLoop, spawnWord]);
+  }, [isReady, gameOver, gamePhase]);
+  // AUTH SCREEN
+  if (gamePhase === 'AUTH') {
+    return (
+      <div className="min-h-screen bg-neo-cyan text-black font-mono p-4 md:p-8 flex items-center justify-center">
+        <div className="max-w-md w-full bg-white border-8 border-black shadow-[16px_16px_0px_#000] p-8">
+          <h1 className="text-4xl font-heading mb-6 text-center uppercase">
+            Semantic <span className="text-neo-pink">Clear</span>
+          </h1>
+          <p className="mb-6 text-center font-bold text-lg">Enter your Player ID to start</p>
+          <form onSubmit={checkPlayer} className="space-y-4">
+            <input
+              type="text"
+              value={uid}
+              onChange={(e) => setUid(e.target.value)}
+              required
+              className="w-full text-4xl font-heading p-4 border-4 border-black text-center"
+              placeholder="23BAI..."
+              autoFocus
+            />
+            <button
+              disabled={authLoading}
+              className="w-full bg-black text-white text-2xl font-heading py-4 hover:bg-neo-green hover:text-black transition-colors"
+            >
+              {authLoading ? <Loader2 className="animate-spin mx-auto" /> : 'VERIFY PLAYER'}
+            </button>
+          </form>
+        </div>
+      </div>
+    );
+  }
 
+  // BET SCREEN
+  if (gamePhase === 'BET' && playerData) {
+    return (
+      <div className="min-h-screen bg-neo-yellow text-black font-mono p-4 md:p-8 flex items-center justify-center">
+        <div className="max-w-md w-full bg-white border-8 border-black shadow-[16px_16px_0px_#000] p-8">
+          <h1 className="text-4xl font-heading mb-6 text-center uppercase">
+            Semantic <span className="text-neo-pink">Clear</span>
+          </h1>
+          <div className="text-center">
+            <h2 className="text-2xl font-bold mb-2">PLAYER: {playerData.name || uid}</h2>
+            <div className="text-4xl font-heading mb-6">BALANCE: {playerData.stonks} 💎</div>
+            {playerData.stonks >= 20 ? (
+              <button
+                onClick={payAndStart}
+                disabled={authLoading}
+                className="w-full bg-neo-green text-black text-3xl font-heading py-6 border-4 border-black shadow-[16px_16px_0px_#000] hover:translate-y-1 hover:shadow-none transition-all"
+              >
+                {authLoading ? 'PROCESSING...' : 'PAY 20 & START'}
+              </button>
+            ) : (
+              <div className="bg-red-500 text-white p-4 font-bold text-xl border-4 border-black">
+                INSUFFICIENT FUNDS
+              </div>
+            )}
+            <button onClick={resetToAuth} className="mt-4 underline hover:text-neo-pink">
+              Cancel
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // RESULT SCREEN
+  if (gamePhase === 'RESULT') {
+    const stonksEarned = calculateStonks(score);
+    
+    return (
+      <div className="min-h-screen bg-neo-pink text-white font-mono p-4 md:p-8 flex items-center justify-center">
+        <div className="max-w-md w-full bg-white border-8 border-black shadow-[16px_16px_0px_#000] p-8 text-black">
+          <div className="text-center animate-in zoom-in duration-300">
+            <div className="bg-neo-green p-8 border-4 border-black mb-6">
+              <Trophy size={64} className="mx-auto mb-4" />
+              <h2 className="text-5xl font-heading mb-2 uppercase">Game Over!</h2>
+              <p className="text-3xl font-bold mb-2">Score: {score}</p>
+              <p className="font-bold text-xl text-neo-pink">+{stonksEarned} STONKS EARNED</p>
+            </div>
+            <button
+              onClick={restartGame}
+              className="w-full bg-white text-black text-2xl font-heading py-4 border-4 border-black mb-4 shadow-[16px_16px_0px_#000] hover:translate-y-1 hover:shadow-none flex items-center justify-center gap-2"
+            >
+              <RefreshCw /> PLAY AGAIN (SAME PLAYER)
+            </button>
+            <button
+              onClick={resetToAuth}
+              className="w-full bg-black text-white text-xl font-heading py-4 border-4 border-black hover:bg-gray-800"
+            >
+              NEW PLAYER
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
   // Loading Screen
   if (isLoading) {
     return (
@@ -369,7 +607,7 @@ export default function SemanticClearGame() {
     );
   }
 
-  // Main Game
+  // Main Game (PLAYING phase)
   return (
     <div className="min-h-screen bg-neo-yellow text-black font-mono p-4 md:p-8 flex items-center justify-center">
       <div className="max-w-4xl w-full bg-white border-8 border-black shadow-[16px_16px_0px_#000] overflow-hidden">
@@ -442,14 +680,23 @@ export default function SemanticClearGame() {
             <div className="absolute inset-0 bg-black bg-opacity-90 flex items-center justify-center z-50">
               <div className="bg-white p-8 border-8 border-black shadow-[16px_16px_0px_#000] text-center max-w-md">
                 <h2 className="text-4xl md:text-6xl font-heading text-neo-pink mb-4 uppercase">Game Over!</h2>
-                <p className="text-2xl md:text-3xl mb-6">
+                <p className="text-2xl md:text-3xl mb-2">
                   Final Score: <span className="font-heading text-neo-green">{score}</span>
+                </p>
+                <p className="text-xl mb-6">
+                  Stonks Earned: <span className="font-heading text-neo-cyan">{calculateStonks(score)}</span> 💎
                 </p>
                 <button
                   onClick={restartGame}
-                  className="w-full bg-neo-green text-black text-2xl font-heading py-4 border-4 border-black shadow-[4px_4px_0px_#000] hover:translate-y-1 hover:shadow-none transition-all flex items-center justify-center gap-2"
+                  className="w-full bg-neo-green text-black text-2xl font-heading py-4 border-4 border-black shadow-[4px_4px_0px_#000] hover:translate-y-1 hover:shadow-none transition-all flex items-center justify-center gap-2 mb-2"
                 >
                   <RefreshCw /> Play Again
+                </button>
+                <button
+                  onClick={resetToAuth}
+                  className="w-full bg-black text-white text-xl font-heading py-3 border-4 border-black hover:bg-gray-800"
+                >
+                  New Player
                 </button>
               </div>
             </div>
