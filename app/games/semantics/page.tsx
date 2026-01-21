@@ -180,6 +180,8 @@ export default function SemanticClearGame() {
   }, [getRandomWord]);
 
   const gameLoop = useCallback(() => {
+    if (gameOver) return; // Stop immediately if game is over
+    
     setWords((prevWords) => {
       // Calculate dynamic fall speed based on score (increases every 500 points)
       const speedMultiplier = 1 + Math.floor(score / 500) * 0.05;
@@ -195,11 +197,16 @@ export default function SemanticClearGame() {
       );
 
       if (collidedWords.length > 0) {
-        // Lose 2 lives for each word that hits bottom
+        // Lose 1 life for each word that hits bottom
         setLives((prevLives) => {
-          const newLives = prevLives - (collidedWords.length * 2);
+          const newLives = prevLives - collidedWords.length;
           if (newLives <= 0) {
             setGameOver(true);
+            // Cancel the next frame immediately
+            if (gameLoopRef.current) {
+              cancelAnimationFrame(gameLoopRef.current);
+              gameLoopRef.current = null;
+            }
           }
           return Math.max(0, newLives);
         });
@@ -217,8 +224,10 @@ export default function SemanticClearGame() {
       return updatedWords;
     });
 
-    gameLoopRef.current = requestAnimationFrame(gameLoop);
-  }, [score]);
+    if (!gameOver) {
+      gameLoopRef.current = requestAnimationFrame(gameLoop);
+    }
+  }, [score, gameOver]);
 
   const handleSubmit = useCallback(
     async (e: React.FormEvent<HTMLFormElement>) => {
