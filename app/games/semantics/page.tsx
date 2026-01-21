@@ -411,13 +411,13 @@ export default function SemanticClearGame() {
     // 1000-2000 points: 8 stonks per 100 points
     if (score > 1000) {
       const tier3Points = Math.min(score - 1000, 1000);
-      stonks += Math.floor(tier3Points / 100) * 8;
+      stonks += Math.floor(tier3Points / 100) * 6;
     }
     
     // 2000+ points: 16 stonks per 100 points
     if (score > 2000) {
       const tier4Points = score - 2000;
-      stonks += Math.floor(tier4Points / 100) * 16;
+      stonks += Math.floor(tier4Points / 100) * 10;
     }
     
     return stonks;
