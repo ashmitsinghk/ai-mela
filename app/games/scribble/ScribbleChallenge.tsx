@@ -577,7 +577,7 @@ export default function ScribbleChallenge() {
 
                     {gameState === 'lost' && (
                       <div className="text-center p-8">
-                        <h3 className="text-5xl font-bold text-green-600 mb-4">🎉 You Lost! AI wins. AI will one day overtake humanity and you'll be left jobless you peace of shit worthless human being. Can't even draw something so simple.</h3>
+                        <h3 className="text-4xl font-bold text-red-600 mb-4">🎉 You Lost! AI wins. AI will one day overtake humanity and you'll be left jobless you peace of shit worthless human being. Can't even draw something so simple.</h3>
                         <p className="text-xl text-gray-700 mb-6">
                           Time's up! The AI couldn't guess your drawing!
                           <br />AI's final guess: <span className="font-bold text-red-600">{currentAiGuess || 'none'}</span>
