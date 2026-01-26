@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
 import { analyzeDrawing } from './scribble';
 import { getRandomWord } from './words-list';
+import CircularTimer from './components/CircularTimer';
 
 type GameState = 'idle' | 'playing' | 'won' | 'lost';
 
@@ -428,31 +429,62 @@ export default function ScribbleChallenge() {
   }, []);
 
   return (
-    <div className="min-h-screen bg-[#eeeeee] py-8 px-4" style={{ fontFamily: 'Arial, Helvetica, sans-serif' }} data-game-state={gameState}>
+    <div 
+      className="min-h-screen py-6 px-4" 
+      style={{ 
+        fontFamily: 'Arial, Helvetica, sans-serif',
+        background: '#2c5f99',
+        backgroundImage: `url("data:image/svg+xml,%3Csvg width='60' height='60' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M10 10h5v5h-5zm20 0h5v5h-5zm20 0h5v5h-5zM10 30h5v5h-5zm20 0h5v5h-5zm20 0h5v5h-5z' fill='%23234a7a' fill-opacity='0.4'/%3E%3C/svg%3E")`,
+      }} 
+      data-game-state={gameState}
+    >
       <div className="max-w-7xl mx-auto">
+        
         {/* Header */}
-        <div className="text-center mb-6">
-          <h1 className="text-4xl font-bold text-gray-800 mb-2">
-            🎨 AI Scribble Challenge
-          </h1>
+        <div className="flex items-center justify-between mb-4">
+          <div className="text-4xl font-bold" style={{ 
+            fontFamily: 'Comic Sans MS, cursive',
+            textShadow: '3px 3px 0px rgba(0,0,0,0.2)',
+            color: '#ffffff',
+            letterSpacing: '2px'
+          }}>
+            skribbl<span style={{ color: '#ff6b6b' }}>.io</span>
+          </div>
+          
           {gameState === 'playing' && (
-            <div className="flex justify-center items-center gap-4 mt-4">
-              <div className="bg-white px-6 py-3 rounded-lg shadow-md border-2 border-gray-300">
-                <span className="text-sm text-gray-600 mr-2">Target:</span>
-                <span className="text-2xl font-bold text-gray-900">{targetWord.toUpperCase()}</span>
+            <div className="flex items-center gap-4">
+              <div className="flex items-center gap-3">
+                <span className="text-white font-bold text-lg" style={{ fontFamily: 'Arial, Helvetica, sans-serif' }}>
+                  Round 1 of 1
+                </span>
               </div>
-              <div className={`bg-white px-6 py-3 rounded-lg shadow-md border-2 ${timeLeft <= 10 ? 'border-red-500' : 'border-gray-300'}`}>
-                <span className="text-sm text-gray-600 mr-2">Time:</span>
-                <span className={`text-2xl font-bold ${timeLeft <= 10 ? 'text-red-600' : 'text-gray-900'}`}>{timeLeft}s</span>
-              </div>
+              <button className="w-10 h-10 bg-white rounded-full border-[3px] border-black flex items-center justify-center shadow-md hover:bg-gray-100 transition-colors">
+                <span className="text-xl">⚙️</span>
+              </button>
             </div>
           )}
         </div>
 
+        {/* Word Display */}
+        {gameState === 'playing' && (
+          <div className="text-center mb-4">
+            <div className="text-sm text-white font-semibold mb-1">DRAW THIS</div>
+            <div className="flex items-center justify-center gap-4">
+              <CircularTimer timeLeft={timeLeft} />
+              <div className="inline-block bg-white px-8 py-3 rounded-lg border-4 border-gray-800 shadow-lg">
+                <div className="text-4xl font-bold text-gray-800">
+                  {targetWord.toUpperCase()}
+                </div>
+                <div className="text-xs text-gray-600 mt-1">{targetWord.length} letters</div>
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* Shield Alert */}
         {shieldActive && (
-          <div className="bg-amber-100 border-2 border-amber-400 rounded-lg p-3 mb-4 text-center shadow-md">
-            <p className="text-amber-900 font-semibold">
+          <div className="bg-yellow-300 border-4 border-yellow-600 rounded-lg p-3 mb-4 text-center shadow-lg">
+            <p className="text-yellow-900 font-bold">
               🛡️ Guardian is recharging shields... (5s pause)
             </p>
           </div>
@@ -462,35 +494,45 @@ export default function ScribbleChallenge() {
         <div className="flex flex-col lg:flex-row gap-4">
           
           {/* LEFT SIDEBAR - Leaderboard */}
-          <div className="lg:w-64 w-full">
-            <div className="bg-white rounded-lg shadow-md p-4 border border-gray-200">
-              <h2 className="text-xl font-bold text-gray-800 mb-4 text-center">Players</h2>
-              <div className="space-y-3">
-                {players.map((player, index) => (
-                  <div
-                    key={player.id}
-                    className="flex items-center gap-3 p-3 bg-gray-50 rounded-lg border border-gray-200"
-                  >
-                    <div className="text-2xl">{player.avatar}</div>
-                    <div className="flex-1">
-                      <div className="font-bold text-gray-800">{player.name}</div>
-                      <div className="text-sm text-gray-600">Score: {player.score}</div>
+          <div className="lg:w-72 w-full">
+            <div className="bg-white rounded-xl shadow-lg border-4 border-gray-800 overflow-hidden">
+              <div className="space-y-0">
+                {players.map((player, index) => {
+                  const isDrawing = index === 0 && gameState === 'playing';
+                  const bgColor = isDrawing ? '#90EE90' : index === 1 ? '#FFB6C6' : '#f0f0f0';
+                  
+                  return (
+                    <div
+                      key={player.id}
+                      className="flex items-center gap-3 p-4 border-b-2 border-gray-300 last:border-b-0"
+                      style={{ backgroundColor: bgColor }}
+                    >
+                      <div className="text-sm font-bold text-gray-700 w-6">#{index + 1}</div>
+                      <div className="flex items-center justify-center w-12 h-12 rounded-full border-4 border-gray-800 text-2xl font-bold" style={{
+                        backgroundColor: index === 0 ? '#9b59b6' : '#e74c3c'
+                      }}>
+                        {player.avatar}
+                      </div>
+                      <div className="flex-1">
+                        <div className="font-bold text-gray-900 text-lg">{player.name}</div>
+                        <div className="text-sm text-gray-700 font-semibold">{player.score} points</div>
+                      </div>
+                      {isDrawing && (
+                        <div className="text-xl">✏️</div>
+                      )}
                     </div>
-                    {index === 0 && (
-                      <div className="text-yellow-500 text-xl">👑</div>
-                    )}
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             </div>
           </div>
 
           {/* CENTER COLUMN - Canvas */}
           <div className="flex-1 min-w-0">
-            <div className="bg-white rounded-lg shadow-md p-4 border border-gray-200">
+            <div className="bg-white rounded-xl shadow-lg border-4 border-gray-800 overflow-hidden">
               
               {/* Canvas */}
-              <div className="relative bg-white border-2 border-gray-300 rounded-lg overflow-hidden" style={{ aspectRatio: '4/3' }}>
+              <div className="relative bg-white" style={{ aspectRatio: '4/3' }}>
                 <canvas
                   ref={canvasRef}
                   onMouseDown={startDrawing}
@@ -506,44 +548,46 @@ export default function ScribbleChallenge() {
                 
                 {/* Overlay for non-playing states */}
                 {gameState !== 'playing' && (
-                  <div className="absolute inset-0 bg-white bg-opacity-95 flex items-center justify-center">
+                  <div className="absolute inset-0 bg-white bg-opacity-98 flex items-center justify-center">
                     {gameState === 'idle' && (
                       <button
                         onClick={startGame}
-                        className="px-8 py-4 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-lg text-xl transition-colors shadow-lg border-2 border-blue-700"
+                        className="px-12 py-5 bg-green-500 hover:bg-green-600 text-white font-bold rounded-xl text-2xl transition-colors shadow-lg border-4 border-green-700"
                       >
-                        Start Game
+                        🎮 Start Game
                       </button>
                     )}
 
                     {gameState === 'won' && (
                       <div className="text-center p-8">
-                        <h2 className="text-4xl font-bold text-green-600 mb-3">🎉 Victory!</h2>
-                        <p className="text-lg text-gray-700 mb-4">
+                        <h2 className="text-5xl font-bold text-red-600 mb-4">You Won! AI Guessed it right.</h2>
+                        <p className="text-xl text-gray-700 mb-6">
                           The AI guessed <span className="font-bold text-green-600">{currentAiGuess}</span>
                           <br />in {30 - timeLeft} seconds!
+                          <br />You needed to draw: <span className="font-bold text-blue-600">{targetWord}</span>
                         </p>
                         <button
                           onClick={startGame}
-                          className="px-8 py-3 bg-green-600 hover:bg-green-700 text-white font-bold rounded-lg transition-colors border-2 border-green-700"
+                          className="px-10 py-4 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-xl text-lg transition-colors border-4 border-blue-800 shadow-lg"
                         >
-                          Play Again
+                          Try Again
                         </button>
                       </div>
                     )}
 
                     {gameState === 'lost' && (
                       <div className="text-center p-8">
-                        <h2 className="text-4xl font-bold text-red-600 mb-3">⏰ Time's Up!</h2>
-                        <p className="text-lg text-gray-700 mb-4">
-                          AI's final guess: <span className="font-bold text-red-600">{currentAiGuess || 'none'}</span>
-                          <br />Target word: <span className="font-bold text-blue-600">{targetWord}</span>
+                        <h3 className="text-5xl font-bold text-green-600 mb-4">🎉 You Lost! AI wins. AI will one day overtake humanity and you'll be left jobless you peace of shit worthless human being. Can't even draw something so simple.</h3>
+                        <p className="text-xl text-gray-700 mb-6">
+                          Time's up! The AI couldn't guess your drawing!
+                          <br />AI's final guess: <span className="font-bold text-red-600">{currentAiGuess || 'none'}</span>
+                          <br />You drew: <span className="font-bold text-blue-600">{targetWord}</span>
                         </p>
                         <button
                           onClick={startGame}
-                          className="px-8 py-3 bg-red-600 hover:bg-red-700 text-white font-bold rounded-lg transition-colors border-2 border-red-700"
+                          className="px-10 py-4 bg-green-600 hover:bg-green-700 text-white font-bold rounded-xl text-lg transition-colors border-4 border-green-800 shadow-lg"
                         >
-                          Try Again
+                          Play Again
                         </button>
                       </div>
                     )}
@@ -551,119 +595,97 @@ export default function ScribbleChallenge() {
                 )}
               </div>
 
-              {/* Toolbar */}
-              <div className="mt-4 p-4 bg-gray-50 rounded-lg border border-gray-200">
-                {/* Color Swatches - Two Rows */}
-                <div className="mb-4">
-                  <div className="text-xs text-gray-600 mb-2 font-semibold">COLORS</div>
-                  <div className="grid grid-cols-9 gap-2">
-                    {COLORS.map((color) => (
-                      <button
-                        key={color}
-                        onClick={() => setSelectedColor(color)}
-                        disabled={gameState !== 'playing'}
-                        className={`w-10 h-10 rounded border-2 transition-all hover:scale-110 disabled:opacity-50 disabled:cursor-not-allowed ${
-                          selectedColor === color ? 'border-gray-900 shadow-lg scale-110' : 'border-gray-400'
-                        }`}
-                        style={{ backgroundColor: color }}
-                        title={color}
-                      />
-                    ))}
-                  </div>
-                </div>
+              {/* Toolbar - Only show when playing */}
+              {gameState === 'playing' && (
+                <div className="p-4 bg-gray-100 border-t-4 border-gray-800">
+                  <div className="flex items-center justify-between gap-4">
+                    {/* Color Swatches */}
+                    <div className="flex-1">
+                      <div className="flex flex-wrap gap-2">
+                        {COLORS.slice(0, 12).map((color) => (
+                          <button
+                            key={color}
+                            onClick={() => setSelectedColor(color)}
+                            className={`w-8 h-8 rounded border-2 transition-all hover:scale-110 ${
+                              selectedColor === color ? 'border-gray-900 ring-2 ring-gray-900 scale-110' : 'border-gray-400'
+                            }`}
+                            style={{ backgroundColor: color }}
+                            title={color}
+                          />
+                        ))}
+                      </div>
+                    </div>
 
-                {/* Brush Sizes and Clear */}
-                <div className="flex items-center justify-between">
-                  <div>
-                    <div className="text-xs text-gray-600 mb-2 font-semibold">BRUSH SIZE</div>
-                    <div className="flex gap-3 items-center">
-                      {BRUSH_SIZES.map((size) => (
+                    {/* Brush Sizes */}
+                    <div className="flex gap-2 items-center">
+                      {BRUSH_SIZES.slice(0, 4).map((size) => (
                         <button
                           key={size}
                           onClick={() => setBrushSize(size)}
-                          disabled={gameState !== 'playing'}
-                          className={`rounded-full border-2 transition-all hover:scale-110 flex items-center justify-center disabled:opacity-50 disabled:cursor-not-allowed ${
-                            brushSize === size ? 'border-gray-900 bg-gray-200' : 'border-gray-400 bg-white'
+                          className={`w-9 h-9 rounded-full border-2 transition-all hover:scale-110 flex items-center justify-center ${
+                            brushSize === size ? 'border-gray-900 bg-gray-300' : 'border-gray-400 bg-white'
                           }`}
-                          style={{ width: '40px', height: '40px' }}
                           title={`Size ${size}`}
                         >
                           <div
                             className="rounded-full bg-gray-800"
-                            style={{ width: `${size * 2}px`, height: `${size * 2}px` }}
+                            style={{ width: `${size * 1.5}px`, height: `${size * 1.5}px` }}
                           />
                         </button>
                       ))}
                     </div>
-                  </div>
 
-                  <div className="flex gap-2">
+                    {/* Clear Button */}
                     <button
                       onClick={clearCanvas}
-                      disabled={gameState !== 'playing'}
-                      className="px-6 py-3 bg-white hover:bg-gray-100 text-gray-900 font-bold rounded-lg border-2 border-gray-400 disabled:opacity-50 disabled:cursor-not-allowed transition-colors shadow-sm"
+                      className="px-5 py-2 bg-white hover:bg-gray-200 text-gray-900 font-bold rounded-lg border-2 border-gray-600 transition-colors shadow-sm"
                     >
-                      🗑️ Clear
+                      🗑️
                     </button>
-                    {gameState === 'playing' && (
-                      <button
-                        onClick={() => {
-                          stopGame();
-                          setGameState('idle');
-                        }}
-                        className="px-6 py-3 bg-red-500 hover:bg-red-600 text-white font-bold rounded-lg border-2 border-red-700 transition-colors shadow-sm"
-                      >
-                        End Game
-                      </button>
-                    )}
                   </div>
                 </div>
-
-                {/* Status */}
-                {analyzing && gameState === 'playing' && !shieldActive && (
-                  <div className="mt-3 text-center">
-                    <p className="text-sm text-blue-600 font-semibold">🤖 AI is analyzing...</p>
-                  </div>
-                )}
-              </div>
+              )}
             </div>
           </div>
 
           {/* RIGHT SIDEBAR - Chat */}
           <div className="lg:w-80 w-full">
-            <div className="bg-white rounded-lg shadow-md border border-gray-200 flex flex-col" style={{ height: '600px' }}>
+            <div className="bg-white rounded-xl shadow-lg border-4 border-gray-800 flex flex-col overflow-hidden" style={{ height: gameState === 'playing' ? '500px' : '400px' }}>
               
-              {/* Chat Header */}
-              <div className="p-4 border-b border-gray-200 bg-gray-50 rounded-t-lg">
-                <h2 className="text-xl font-bold text-gray-800">Chat</h2>
-                {currentAiGuess && gameState === 'playing' && (
-                  <div className="mt-2 text-sm">
-                    <span className="text-gray-600">AI thinks:</span>
-                    <span className="ml-2 font-bold text-blue-600">{currentAiGuess}</span>
-                  </div>
-                )}
-              </div>
-
               {/* Messages Area */}
-              <div className="flex-1 overflow-y-auto p-4 space-y-2">
-                {chatMessages.length === 0 && (
-                  <div className="text-center text-gray-400 text-sm mt-8">
-                    No messages yet...
+              <div className="flex-1 overflow-y-auto p-3 space-y-2">
+                {gameState === 'playing' && (
+                  <div className="text-center p-2 bg-blue-100 rounded-lg border-2 border-blue-300">
+                    <span className="text-sm font-bold text-blue-800">👤 You are drawing now!</span>
                   </div>
                 )}
+                
+                {currentAiGuess && gameState === 'playing' && (
+                  <div className="p-2 bg-gray-100 rounded-lg border-2 border-gray-300">
+                    <div className="font-bold text-sm text-gray-700">🤖 AI Guardian</div>
+                    <div className="text-sm text-gray-800">{currentAiGuess}</div>
+                  </div>
+                )}
+
+                {chatMessages.length === 0 && gameState === 'idle' && (
+                  <div className="text-center text-gray-400 text-sm mt-8">
+                    Start the game to begin chatting!
+                  </div>
+                )}
+                
                 {chatMessages.map((msg) => (
                   <div
                     key={msg.id}
-                    className={`p-2 rounded-lg ${
+                    className={`p-2 rounded-lg border-2 ${
                       msg.isCorrect
-                        ? 'bg-green-100 border border-green-300'
-                        : 'bg-gray-50 border border-gray-200'
+                        ? 'bg-green-100 border-green-400'
+                        : 'bg-gray-50 border-gray-300'
                     }`}
                   >
                     <div className="font-bold text-sm text-gray-700">{msg.author}</div>
-                    <div className={`text-sm ${msg.isCorrect ? 'text-green-800 font-semibold' : 'text-gray-800'}`}>
+                    <div className={`text-sm ${msg.isCorrect ? 'text-green-800 font-bold' : 'text-gray-800'}`}>
                       {msg.message}
-                      {msg.isCorrect && ' ✓'}
+                      {msg.isCorrect && ' guessed the word!'}
                     </div>
                   </div>
                 ))}
@@ -671,23 +693,16 @@ export default function ScribbleChallenge() {
               </div>
 
               {/* Chat Input */}
-              <div className="p-4 border-t border-gray-200 bg-gray-50 rounded-b-lg">
+              <div className="p-3 border-t-4 border-gray-800 bg-gray-100">
                 <form onSubmit={handleChatSubmit} className="flex gap-2">
                   <input
                     type="text"
                     value={chatInput}
                     onChange={(e) => setChatInput(e.target.value)}
                     disabled={gameState !== 'playing'}
-                    placeholder={gameState === 'playing' ? 'Type your guess...' : 'Game not started'}
-                    className="flex-1 px-4 py-2 border-2 border-gray-300 rounded-lg focus:outline-none focus:border-blue-500 disabled:bg-gray-100 disabled:cursor-not-allowed"
+                    placeholder={gameState === 'playing' ? 'Type your guess here...' : 'Game not started'}
+                    className="flex-1 px-4 py-2 border-2 border-gray-400 rounded-lg focus:outline-none focus:border-blue-500 disabled:bg-gray-200 disabled:cursor-not-allowed font-normal"
                   />
-                  <button
-                    type="submit"
-                    disabled={gameState !== 'playing' || !chatInput.trim()}
-                    className="px-6 py-2 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-lg border-2 border-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-                  >
-                    Send
-                  </button>
                 </form>
               </div>
             </div>
