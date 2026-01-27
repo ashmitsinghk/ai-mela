@@ -4,8 +4,10 @@ import { useEffect, useRef, useState, useCallback } from 'react';
 import { analyzeDrawing } from './scribble';
 import { getRandomWord } from './words-list';
 import CircularTimer from './components/CircularTimer';
+import { supabase } from '@/utils/supabase';
+import { Loader2, Palette } from 'lucide-react';
 
-type GameState = 'idle' | 'playing' | 'won' | 'lost';
+type GameState = 'AUTH' | 'BET' | 'idle' | 'playing' | 'won' | 'lost';
 
 interface ChatMessage {
   id: number;
@@ -35,13 +37,18 @@ export default function ScribbleChallenge() {
   const [isDrawing, setIsDrawing] = useState(false);
   const [targetWord, setTargetWord] = useState('');
   const [timeLeft, setTimeLeft] = useState(30);
-  const [gameState, setGameState] = useState<GameState>('idle');
+  const [gameState, setGameState] = useState<GameState>('AUTH');
   const [currentAiGuess, setCurrentAiGuess] = useState('');
   const [shieldActive, setShieldActive] = useState(false);
   const [analyzing, setAnalyzing] = useState(false);
   const pollingIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const timerIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const lastAnalysisRef = useRef<number>(0);
+  
+  // Auth state
+  const [uid, setUid] = useState('');
+  const [playerData, setPlayerData] = useState<{ name: string | null; stonks: number } | null>(null);
+  const [loading, setLoading] = useState(false);
   
   // Refs to avoid stale closure issues in intervals
   const gameStateRef = useRef<GameState>(gameState);
@@ -75,6 +82,104 @@ export default function ScribbleChallenge() {
   useEffect(() => {
     targetWordRef.current = targetWord;
   }, [targetWord]);
+
+  // Auth functions
+  const checkPlayer = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setLoading(true);
+    try {
+      const { data, error } = await supabase
+        .from('players')
+        .select('name, stonks')
+        .eq('uid', uid)
+        .single();
+
+      if (error || !data) {
+        alert('Player not found!');
+        setPlayerData(null);
+      } else {
+        setPlayerData(data);
+        setGameState('BET');
+      }
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const payAndStart = async () => {
+    if (!playerData || playerData.stonks < 20) {
+      alert('Insufficient Stonks!');
+      return;
+    }
+    setLoading(true);
+
+    const { error: updateError } = await supabase
+      .from('players')
+      .update({ stonks: playerData.stonks - 20 })
+      .eq('uid', uid);
+    
+    if (updateError) {
+      alert('Transaction Failed');
+      setLoading(false);
+      return;
+    }
+
+    // Log Entry
+    await supabase.from('game_logs').insert({
+      player_uid: uid,
+      game_title: 'AI Scribble Challenge',
+      result: 'PLAYING',
+      stonks_change: -20
+    });
+
+    setPlayerData({ ...playerData, stonks: playerData.stonks - 20 });
+    setLoading(false);
+    setGameState('idle');
+  };
+
+  const resetGame = () => {
+    setGameState('AUTH');
+    setUid('');
+    setPlayerData(null);
+    setTargetWord('');
+    setTimeLeft(30);
+    setCurrentAiGuess('');
+    stopGame();
+  };
+
+  // Handle game end and award stonks
+  const handleGameEnd = async (result: 'won' | 'lost') => {
+    if (!playerData || !uid) return;
+
+    const reward = result === 'won' ? 35 : 0;
+
+    if (result === 'won') {
+      // Update stonks in database
+      await supabase
+        .from('players')
+        .update({ stonks: playerData.stonks + reward })
+        .eq('uid', uid);
+
+      // Update local state
+      setPlayerData({ ...playerData, stonks: playerData.stonks + reward });
+
+      // Log win
+      await supabase.from('game_logs').insert({
+        player_uid: uid,
+        game_title: 'AI Scribble Challenge',
+        result: 'WIN',
+        stonks_change: reward
+      });
+    } else {
+      // Log loss
+      await supabase.from('game_logs').insert({
+        player_uid: uid,
+        game_title: 'AI Scribble Challenge',
+        result: 'LOSS',
+        stonks_change: 0
+      });
+    }
+  };
 
   // Auto-scroll chat
   useEffect(() => {
@@ -224,7 +329,7 @@ export default function ScribbleChallenge() {
       id: Date.now(),
       author: 'You',
       message: chatInput,
-      isCorrect: chatInput.toLowerCase().trim() === targetWord.toLowerCase().trim()
+      isCorrect: chatInput.toLowerCase().trim().replace(/\s+/g, '') === targetWord.toLowerCase().trim().replace(/\s+/g, '')
     };
 
     setChatMessages([...chatMessages, newMessage]);
@@ -260,8 +365,8 @@ export default function ScribbleChallenge() {
     }
 
     const now = Date.now();
-    if (now - lastAnalysisRef.current < 1000) {
-      console.log('⏱️ Throttled (< 1s since last call)');
+    if (now - lastAnalysisRef.current < 3000) {
+      console.log('⏱️ Throttled (< 3s since last call)');
       return;
     }
     lastAnalysisRef.current = now;
@@ -301,12 +406,14 @@ export default function ScribbleChallenge() {
       setCurrentAiGuess(result.guess);
 
       // Check win condition
-      const normalizedGuess = result.guess.toLowerCase().trim();
-      const normalizedTarget = currentTargetWord.toLowerCase().trim();
+      const normalizedGuess = result.guess.toLowerCase().trim().replace(/\s+/g, '');
+      const normalizedTarget = currentTargetWord.toLowerCase().trim().replace(/\s+/g, '');
       
       if (normalizedGuess === normalizedTarget) {
         setGameState('won');
         stopGame();
+        // Award stonks for winning
+        await handleGameEnd('won');
       }
     }
   }, [exportToBlob]);
@@ -332,7 +439,7 @@ export default function ScribbleChallenge() {
       }
       
       analyzeCurrentDrawing();
-    }, 1000);
+    }, 3000);
     
     pollingIntervalRef.current = intervalId;
     console.log('✅ Polling interval started with ID:', intervalId);
@@ -390,6 +497,7 @@ export default function ScribbleChallenge() {
           // Use setTimeout to ensure state update happens after interval cleanup
           setTimeout(() => {
             setGameState('lost');
+            handleGameEnd('lost');
           }, 0);
           return 0;
         }
@@ -438,7 +546,114 @@ export default function ScribbleChallenge() {
       }} 
       data-game-state={gameState}
     >
-      <div className="max-w-7xl mx-auto">
+      {/* AUTH PHASE */}
+      {gameState === 'AUTH' && (
+        <div className="min-h-screen bg-neo-cyan text-black font-mono p-4 md:p-8 flex items-center justify-center">
+          <div className="max-w-md w-full bg-white border-8 border-black shadow-[16px_16px_0px_#000] p-8">
+            <div className="text-center mb-8">
+              <div className="inline-flex items-center justify-center w-20 h-20 bg-neo-pink border-4 border-black mb-4">
+                <Palette className="w-10 h-10 text-white" />
+              </div>
+              <h1 className="text-4xl font-heading mb-2 uppercase">
+                AI Scribble <span className="text-neo-pink">Challenge</span>
+              </h1>
+              <p className="font-bold text-lg">Enter your Player ID to start</p>
+            </div>
+
+            <form onSubmit={checkPlayer} className="space-y-4">
+              <input
+                type="text"
+                value={uid}
+                onChange={(e) => setUid(e.target.value)}
+                placeholder="23BAI..."
+                required
+                autoFocus
+                className="w-full text-4xl font-heading p-4 border-4 border-black text-center uppercase"
+              />
+
+              <button
+                type="submit"
+                disabled={loading || !uid.trim()}
+                className="w-full bg-black text-white text-2xl font-heading py-4 hover:bg-neo-green hover:text-black transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {loading ? (
+                  <div className="flex items-center justify-center gap-2">
+                    <Loader2 className="w-5 h-5 animate-spin" />
+                    CHECKING...
+                  </div>
+                ) : (
+                  'VERIFY PLAYER'
+                )}
+              </button>
+            </form>
+
+            <div className="mt-6 text-center text-sm">
+              <p className="font-bold">Entry Fee: 20 💎</p>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* BET PHASE */}
+      {gameState === 'BET' && playerData && (
+        <div className="min-h-screen bg-neo-yellow text-black font-mono p-4 md:p-8 flex items-center justify-center">
+          <div className="max-w-md w-full bg-white border-8 border-black shadow-[16px_16px_0px_#000] p-8">
+            <div className="text-center mb-6">
+              <div className="inline-flex items-center justify-center w-20 h-20 bg-neo-green border-4 border-black mb-4">
+                <span className="text-4xl">🎨</span>
+              </div>
+              <h1 className="text-4xl font-heading mb-2 uppercase">
+                AI Scribble <span className="text-neo-pink">Challenge</span>
+              </h1>
+              <h2 className="text-2xl font-bold mb-2">PLAYER: {playerData.name || uid}</h2>
+            </div>
+
+            <div className="bg-neo-cyan border-4 border-black p-6 mb-6">
+              <div className="text-center">
+                <div className="text-4xl font-heading mb-4">BALANCE: {playerData.stonks} 💎</div>
+                <div className="text-2xl font-bold mb-2">ENTRY FEE: -20 💎</div>
+                <div className="border-t-4 border-black pt-3 mt-3">
+                  <div className="text-3xl font-heading">
+                    AFTER ENTRY: {playerData.stonks - 20} 💎
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {playerData.stonks < 20 ? (
+              <div className="bg-red-500 text-white p-4 font-bold text-xl border-4 border-black text-center mb-4">
+                INSUFFICIENT FUNDS
+              </div>
+            ) : (
+              <button
+                onClick={payAndStart}
+                disabled={loading}
+                className="w-full bg-neo-green text-black text-3xl font-heading py-6 border-4 border-black shadow-[16px_16px_0px_#000] hover:translate-y-1 hover:shadow-none transition-all disabled:opacity-50 disabled:cursor-not-allowed mb-4"
+              >
+                {loading ? (
+                  <div className="flex items-center justify-center gap-2">
+                    <Loader2 className="w-5 h-5 animate-spin" />
+                    PROCESSING...
+                  </div>
+                ) : (
+                  'PAY 20 & START'
+                )}
+              </button>
+            )}
+
+            <button
+              onClick={resetGame}
+              className="w-full text-center underline hover:text-neo-pink font-bold"
+            >
+              Cancel
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* GAME PHASE */}
+      {(gameState === 'idle' || gameState === 'playing' || gameState === 'won' || gameState === 'lost') && (
+        <div className="max-w-7xl mx-auto">
         
         {/* Header */}
         <div className="flex items-center justify-between mb-4">
@@ -560,34 +775,35 @@ export default function ScribbleChallenge() {
 
                     {gameState === 'won' && (
                       <div className="text-center p-8">
-                        <h2 className="text-5xl font-bold text-red-600 mb-4">You Won! AI Guessed it right.</h2>
+                        <h2 className="text-5xl font-bold text-green-600 mb-4">🎉 You Won!</h2>
                         <p className="text-xl text-gray-700 mb-6">
                           The AI guessed <span className="font-bold text-green-600">{currentAiGuess}</span>
                           <br />in {30 - timeLeft} seconds!
-                          <br />You needed to draw: <span className="font-bold text-blue-600">{targetWord}</span>
+                          <br />You drew: <span className="font-bold text-blue-600">{targetWord}</span>
+                          <br /><span className="text-green-600 font-bold text-2xl">+35 💎</span>
                         </p>
                         <button
-                          onClick={startGame}
-                          className="px-10 py-4 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-xl text-lg transition-colors border-4 border-blue-800 shadow-lg"
+                          onClick={resetGame}
+                          className="px-10 py-4 bg-gray-600 hover:bg-gray-700 text-white font-bold rounded-xl text-lg transition-colors border-4 border-gray-800 shadow-lg"
                         >
-                          Try Again
+                          Exit
                         </button>
                       </div>
                     )}
 
                     {gameState === 'lost' && (
                       <div className="text-center p-8">
-                        <h3 className="text-4xl font-bold text-red-600 mb-4">🎉 You Lost! AI wins. AI will one day overtake humanity and you'll be left jobless you peace of shit worthless human being. Can't even draw something so simple.</h3>
+                        <h2 className="text-5xl font-bold text-red-600 mb-4">😢 You Lost! You worthless peace of human garbage. AI will one day take your job</h2>
                         <p className="text-xl text-gray-700 mb-6">
                           Time's up! The AI couldn't guess your drawing!
                           <br />AI's final guess: <span className="font-bold text-red-600">{currentAiGuess || 'none'}</span>
-                          <br />You drew: <span className="font-bold text-blue-600">{targetWord}</span>
+                          <br />You needed to draw: <span className="font-bold text-blue-600">{targetWord}</span>
                         </p>
                         <button
-                          onClick={startGame}
-                          className="px-10 py-4 bg-green-600 hover:bg-green-700 text-white font-bold rounded-xl text-lg transition-colors border-4 border-green-800 shadow-lg"
+                          onClick={resetGame}
+                          className="px-10 py-4 bg-gray-600 hover:bg-gray-700 text-white font-bold rounded-xl text-lg transition-colors border-4 border-gray-800 shadow-lg"
                         >
-                          Play Again
+                          Exit
                         </button>
                       </div>
                     )}
@@ -691,25 +907,12 @@ export default function ScribbleChallenge() {
                 ))}
                 <div ref={chatEndRef} />
               </div>
-
-              {/* Chat Input */}
-              <div className="p-3 border-t-4 border-gray-800 bg-gray-100">
-                <form onSubmit={handleChatSubmit} className="flex gap-2">
-                  <input
-                    type="text"
-                    value={chatInput}
-                    onChange={(e) => setChatInput(e.target.value)}
-                    disabled={gameState !== 'playing'}
-                    placeholder={gameState === 'playing' ? 'Type your guess here...' : 'Game not started'}
-                    className="flex-1 px-4 py-2 border-2 border-gray-400 rounded-lg focus:outline-none focus:border-blue-500 disabled:bg-gray-200 disabled:cursor-not-allowed font-normal"
-                  />
-                </form>
-              </div>
             </div>
           </div>
 
         </div>
       </div>
+      )}
     </div>
   );
 }
