@@ -1,0 +1,77 @@
+[
+  {
+    "id": 1,
+    "realImage": "/deepfake/real1.jpeg",
+    "fakeImage": "/deepfake/fake1.png"
+  },
+  {
+    "id": 2,
+    "realImage": "/deepfake/real2.jpeg",
+    "fakeImage": "/deepfake/fake2.png"
+  },
+  {
+    "id": 3,
+    "realImage": "/deepfake/real3.jpeg",
+    "fakeImage": "/deepfake/fake3.png"
+  },
+  {
+    "id": 4,
+    "realImage": "/deepfake/real4.jpeg",
+    "fakeImage": "/deepfake/fake4.png"
+  },
+  {
+    "id": 5,
+    "realImage": "/deepfake/real5.jpeg",
+    "fakeImage": "/deepfake/fake5.png"
+  },
+  {
+    "id": 6,
+    "realImage": "/deepfake/real6.jpeg",
+    "fakeImage": "/deepfake/fake6.png"
+  },
+  {
+    "id": 7,
+    "realImage": "/deepfake/real7.jpeg",
+    "fakeImage": "/deepfake/fake7.png"
+  },
+  {
+    "id": 8,
+    "realImage": "/deepfake/real8.jpeg",
+    "fakeImage": "/deepfake/fake8.png"
+  },
+  {
+    "id": 9,
+    "realImage": "/deepfake/real9.jpeg",
+    "fakeImage": "/deepfake/fake9.png"
+  },
+  {
+    "id": 10,
+    "realImage": "/deepfake/real10.jpeg",
+    "fakeImage": "/deepfake/fake10.png"
+    },
+    {
+        "id": 11,
+        "realImage": "/deepfake/real11.jpeg",
+        "fakeImage": "/deepfake/fake11.png"
+    },
+    {
+        "id": 12,
+        "realImage": "/deepfake/real12.jpeg",
+        "fakeImage": "/deepfake/fake12.png"
+    },
+    {
+        "id": 13,
+        "realImage": "/deepfake/real13.jpeg",
+        "fakeImage": "/deepfake/fake13.png"
+    },
+    {
+        "id": 14,
+        "realImage": "/deepfake/real14.jpeg",
+        "fakeImage": "/deepfake/fake14.png"
+    },
+    {
+        "id": 15,
+        "realImage": "/deepfake/real15.jpeg",
+        "fakeImage": "/deepfake/fake15.png"
+    }
+]
