@@ -55,6 +55,12 @@ export default function GamesPage() {
       path: '/games/meme-recreator',
       description: 'Recreate viral memes with your body!',
       color: 'bg-red-400'
+    },
+    {
+      name: 'Dumb Charades',
+      path: '/games/dumb-charades',
+      description: 'Guess the prompt',
+      color: 'bg-emerald-400'
     }
   ];
 
