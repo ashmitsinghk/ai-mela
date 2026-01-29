@@ -148,6 +148,92 @@
     "id": 30,
     "image": "/Dumb-Charades/img_30.png",
     "prompt": "A knight in shiny metal armor trying to make a smoothie in a modern blender."
+  },
+  {
+    "id": 31,
+    "image": "/Dumb-Charades/img_31.png",
+    "prompt": "A serious medieval oil painting of a knight dramatically unmasking… a rubber chicken.",
+    "category": "Art"
+  },
+  {
+    "id": 32,
+    "image": "/Dumb-Charades/img_32.png",
+    "prompt": "A raccoon in a business suit giving a TED Talk to an audience of confused pigeons.",
+    "category": "Animals"
+  },
+  {
+    "id": 33,
+    "image": "/Dumb-Charades/img_33.png",
+    "prompt": "An ultra-realistic portrait of a shark working as a barista, latte art shaped like tiny fish.",
+    "category": "Animals"
+  },
+  {
+    "id": 34,
+    "image": "/Dumb-Charades/img_34.png",
+    "prompt": "A Renaissance-style painting of a cat judging humans at a court trial.",
+    "category": "Art"
+  },
+  {
+    "id": 35,
+    "image": "/Dumb-Charades/img_35.png",
+    "prompt": "A dramatic movie poster for a rom-com starring a sentient loaf of bread and a toaster.",
+    "category": "Cinema"
+  },
+  {
+    "id": 36,
+    "image": "/Dumb-Charades/img_36.png",
+    "prompt": "A group of cows having a formal business meeting in a glass skyscraper boardroom.",
+    "category": "Animals"
+  },
+  {
+    "id": 37,
+    "image": "/Dumb-Charades/img_37.png",
+    "prompt": "A wizard angrily trying to fix a printer in a magical tower filled with floating runes.",
+    "category": "Fantasy"
+  },
+  {
+    "id": 38,
+    "image": "/Dumb-Charades/img_38.png",
+    "prompt": "A superhero team reveal, but every hero has an extremely useless power (like controlling spoons).",
+    "category": "Fantasy"
+  },
+  {
+    "id": 39,
+    "image": "/Dumb-Charades/img_39.png",
+    "prompt": "A dramatic fashion photoshoot featuring models made entirely out of household sponges.",
+    "category": "Photography"
+  },
+  {
+    "id": 40,
+    "image": "/Dumb-Charades/img_40.png",
+    "prompt": "A cozy cottagecore scene where a dragon is peacefully baking cupcakes in an apron.",
+    "category": "Fantasy"
+  },
+  {
+    "id": 41,
+    "image": "/Dumb-Charades/img_41.png",
+    "prompt": "An epic fantasy map, but every location is named after different types of cheese.",
+  },
+  {
+    "id": 42,
+    "image": "/Dumb-Charades/img_42.png",
+    "prompt": "A cinematic shot of a potato wearing a crown, ruling over a kingdom of french fries.",
+  },
+  {
+    "id": 43,
+    "image": "/Dumb-Charades/img_43.png",
+    "prompt": "A realistic wildlife documentary shot of penguins running a sushi restaurant.",
+  },
+  {
+    "id": 44,
+    "image": "/Dumb-Charades/img_44.png",
+    "prompt": "A highly detailed action shot of a squirrel stealing a hot dog in slow motion.",
+  },
+  {
+    "id": 45,
+    "image": "/Dumb-Charades/img_45.png",
+    "prompt": "A noir detective scene starring a sad banana in a trench coat under a streetlight.",
   }
+
 ]
 

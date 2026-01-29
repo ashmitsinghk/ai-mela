@@ -73,5 +73,55 @@
         "id": 15,
         "realImage": "/deepfake/real15.jpeg",
         "fakeImage": "/deepfake/fake15.png"
+    },
+    {
+        "id": 16,
+        "realImage": "/deepfake/real13a.jpg",
+        "fakeImage": "/deepfake/fake13a.png"
+    },
+    {
+        "id": 17,
+        "realImage": "/deepfake/real13b.jpg",
+        "fakeImage": "/deepfake/fake13b.png"
+    },
+    {
+        "id": 18,
+        "realImage": "/deepfake/real13c.jpg",
+        "fakeImage": "/deepfake/fake13c.png"
+    },
+    {
+        "id": 19,
+        "realImage": "/deepfake/real13d.jpg",
+        "fakeImage": "/deepfake/fake13d.png"
+    },
+    {
+        "id": 20,
+        "realImage": "/deepfake/real13e.jpg",
+        "fakeImage": "/deepfake/fake13e.png"
+    },
+    {
+        "id": 21,
+        "realImage": "/deepfake/real13f.jpg",
+        "fakeImage": "/deepfake/fake13f.png"
+    },
+    {
+        "id": 22,
+        "realImage": "/deepfake/real13g.jpg",
+        "fakeImage": "/deepfake/fake13g.png"
+    },
+    {
+        "id": 23,
+        "realImage": "/deepfake/real13h.jpg",
+        "fakeImage": "/deepfake/fake13h.png"
+    },
+    {
+        "id": 24,
+        "realImage": "/deepfake/real13i.jpg",
+        "fakeImage": "/deepfake/fake13i.png"
+    },
+    {
+        "id": 25,
+        "realImage": "/deepfake/real13j.jpg",
+        "fakeImage": "/deepfake/fake13j.png"
     }
 ]
