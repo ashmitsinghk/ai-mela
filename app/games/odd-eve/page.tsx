@@ -286,7 +286,7 @@ export default function OddEveGame() {
 
 
     return (
-        <div className="min-h-screen bg-neo-yellow text-black font-mono p-4 md:p-8 flex flex-col items-center justify-center">
+        <div className="h-screen overflow-auto bg-neo-yellow text-black font-mono p-4 md:p-8 flex flex-col items-center justify-center">
             <div className="max-w-2xl w-full bg-white border-8 border-black shadow-[16px_16px_0px_#000] p-4 md:p-8">
                 <h1 className="text-3xl md:text-5xl font-heading mb-4 text-center uppercase leading-none">ODD-EVE <span className="text-neo-pink">CRICKET</span></h1>
 

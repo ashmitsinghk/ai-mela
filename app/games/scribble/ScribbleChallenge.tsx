@@ -538,18 +538,16 @@ export default function ScribbleChallenge() {
 
   return (
     <div 
-      className="min-h-screen py-6 px-4" 
+      className="h-screen overflow-auto" 
       style={{ 
         fontFamily: 'Arial, Helvetica, sans-serif',
-        background: '#2c5f99',
-        backgroundImage: `url("data:image/svg+xml,%3Csvg width='60' height='60' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M10 10h5v5h-5zm20 0h5v5h-5zm20 0h5v5h-5zM10 30h5v5h-5zm20 0h5v5h-5zm20 0h5v5h-5z' fill='%23234a7a' fill-opacity='0.4'/%3E%3C/svg%3E")`,
       }} 
       data-game-state={gameState}
     >
       {/* AUTH PHASE */}
       {gameState === 'AUTH' && (
-        <div className="min-h-screen bg-neo-cyan text-black font-mono p-4 md:p-8 flex items-center justify-center">
-          <div className="max-w-md w-full bg-white border-8 border-black shadow-[16px_16px_0px_#000] p-8">
+        <div className="h-screen overflow-auto bg-neo-cyan text-black font-mono p-4 md:p-8 flex items-center justify-center">
+          <div className="max-w-md w-full bg-white shadow-[16px_16px_0px_#000] p-8">
             <div className="text-center mb-8">
               <div className="inline-flex items-center justify-center w-20 h-20 bg-neo-pink border-4 border-black mb-4">
                 <Palette className="w-10 h-10 text-white" />
@@ -596,7 +594,7 @@ export default function ScribbleChallenge() {
 
       {/* BET PHASE */}
       {gameState === 'BET' && playerData && (
-        <div className="min-h-screen bg-neo-yellow text-black font-mono p-4 md:p-8 flex items-center justify-center">
+        <div className="h-screen overflow-auto bg-neo-yellow text-black font-mono p-4 md:p-8 flex items-center justify-center">
           <div className="max-w-md w-full bg-white border-8 border-black shadow-[16px_16px_0px_#000] p-8">
             <div className="text-center mb-6">
               <div className="inline-flex items-center justify-center w-20 h-20 bg-neo-green border-4 border-black mb-4">

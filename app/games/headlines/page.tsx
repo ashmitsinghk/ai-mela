@@ -225,7 +225,7 @@ export default function HeadlinesGame() {
   const totalReward = correctCount * POINTS_PER_CORRECT;
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-purple-50 to-pink-50 p-4">
+    <div className="h-screen overflow-auto bg-gradient-to-br from-blue-50 via-purple-50 to-pink-50 p-4">
       <div className="max-w-4xl mx-auto">
         {/* AUTH PHASE */}
         {gameState === 'AUTH' && (

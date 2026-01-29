@@ -469,7 +469,7 @@ export default function SemanticClearGame() {
   // AUTH SCREEN
   if (gamePhase === 'AUTH') {
     return (
-      <div className="min-h-screen bg-neo-cyan text-black font-mono p-4 md:p-8 flex items-center justify-center">
+      <div className="h-screen overflow-auto bg-neo-cyan text-black font-mono p-4 md:p-8 flex items-center justify-center">
         <div className="max-w-md w-full bg-white border-8 border-black shadow-[16px_16px_0px_#000] p-8">
           <h1 className="text-4xl font-heading mb-6 text-center uppercase">
             Semantic <span className="text-neo-pink">Clear</span>
@@ -500,7 +500,7 @@ export default function SemanticClearGame() {
   // BET SCREEN
   if (gamePhase === 'BET' && playerData) {
     return (
-      <div className="min-h-screen bg-neo-yellow text-black font-mono p-4 md:p-8 flex items-center justify-center">
+      <div className="h-screen overflow-auto bg-neo-yellow text-black font-mono p-4 md:p-8 flex items-center justify-center">
         <div className="max-w-md w-full bg-white border-8 border-black shadow-[16px_16px_0px_#000] p-8">
           <h1 className="text-4xl font-heading mb-6 text-center uppercase">
             Semantic <span className="text-neo-pink">Clear</span>
@@ -535,7 +535,7 @@ export default function SemanticClearGame() {
     const stonksEarned = calculateStonks(score);
     
     return (
-      <div className="min-h-screen bg-neo-pink text-white font-mono p-4 md:p-8 flex items-center justify-center">
+      <div className="h-screen overflow-auto bg-neo-pink text-white font-mono p-4 md:p-8 flex items-center justify-center">
         <div className="max-w-md w-full bg-white border-8 border-black shadow-[16px_16px_0px_#000] p-8 text-black">
           <div className="text-center animate-in zoom-in duration-300">
             <div className="bg-neo-green p-8 border-4 border-black mb-6">
@@ -564,7 +564,7 @@ export default function SemanticClearGame() {
   // Loading Screen
   if (isLoading) {
     return (
-      <div className="min-h-screen bg-neo-yellow text-black font-mono p-4 md:p-8 flex items-center justify-center">
+      <div className="h-screen overflow-auto bg-neo-yellow text-black font-mono p-4 md:p-8 flex items-center justify-center">
         <div className="max-w-md w-full bg-white border-8 border-black shadow-[16px_16px_0px_#000] p-8">
           <h2 className="text-3xl font-heading mb-6 text-center uppercase">
             Loading AI Model...
@@ -592,7 +592,7 @@ export default function SemanticClearGame() {
   // Error Screen
   if (error) {
     return (
-      <div className="min-h-screen bg-neo-pink text-white font-mono p-4 md:p-8 flex items-center justify-center">
+      <div className="h-screen overflow-auto bg-neo-pink text-white font-mono p-4 md:p-8 flex items-center justify-center">
         <div className="max-w-md w-full bg-white border-8 border-black shadow-[16px_16px_0px_#000] p-8 text-black">
           <h2 className="text-3xl font-heading mb-4 text-center uppercase">Error Loading Model</h2>
           <p className="mb-6 text-center">{error}</p>
@@ -609,7 +609,7 @@ export default function SemanticClearGame() {
 
   // Main Game (PLAYING phase)
   return (
-    <div className="min-h-screen bg-neo-yellow text-black font-mono p-4 md:p-8 flex items-center justify-center">
+    <div className="h-screen overflow-auto bg-neo-yellow text-black font-mono p-4 md:p-8 flex items-center justify-center">
       <div className="max-w-4xl w-full bg-white border-8 border-black shadow-[16px_16px_0px_#000] overflow-hidden">
         {/* Header */}
         <div className="bg-black text-neo-green p-4 border-b-8 border-black">

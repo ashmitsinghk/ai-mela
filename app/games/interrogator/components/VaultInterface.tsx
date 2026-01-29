@@ -296,7 +296,7 @@ export default function VaultInterface() {
   // --- AUTH SCREEN ---
   if (gamePhase === 'AUTH') {
     return (
-      <div className="min-h-screen bg-green-950 text-green-400 font-mono p-4 md:p-8 flex items-center justify-center">
+      <div className="h-screen overflow-auto bg-green-950 text-green-400 font-mono p-4 md:p-8 flex items-center justify-center">
         <div className="max-w-md w-full bg-black border-4 border-green-400 shadow-[16px_16px_0px_rgba(34,197,94,0.3)] p-8">
           <h1 className="text-4xl font-bold mb-6 text-center uppercase text-green-400">
             AI <span className="text-cyan-400">Interrogator</span>
@@ -327,7 +327,7 @@ export default function VaultInterface() {
   // --- BET SCREEN ---
   if (gamePhase === 'BET' && playerData) {
     return (
-      <div className="min-h-screen bg-green-900 text-green-400 font-mono p-4 md:p-8 flex items-center justify-center">
+      <div className="h-screen overflow-auto bg-green-900 text-green-400 font-mono p-4 md:p-8 flex items-center justify-center">
         <div className="max-w-md w-full bg-black border-4 border-green-400 shadow-[16px_16px_0px_rgba(34,197,94,0.3)] p-8">
           <h1 className="text-4xl font-bold mb-6 text-center uppercase text-green-400">
             AI <span className="text-cyan-400">Interrogator</span>
@@ -380,7 +380,7 @@ export default function VaultInterface() {
   // --- CURTAIN ANIMATION ---
   if (showCurtain) {
     return (
-      <div className="min-h-screen bg-black flex items-center justify-center overflow-hidden">
+      <div className="h-screen overflow-auto bg-black flex items-center justify-center">
         <div 
           className="absolute inset-0 bg-green-600 animate-[slideUp_1.5s_ease-in-out_forwards]"
           style={{
@@ -409,7 +409,7 @@ export default function VaultInterface() {
     const stonksChange = gameWon ? 40 : 0;
     
     return (
-      <div className="min-h-screen bg-black text-green-400 font-mono p-4 md:p-8 flex items-center justify-center">
+      <div className="h-screen overflow-auto bg-black text-green-400 font-mono p-4 md:p-8 flex items-center justify-center">
         <div className="max-w-md w-full bg-black border-4 border-green-400 shadow-[16px_16px_0px_rgba(34,197,94,0.3)] p-8">
           <div className="text-center">
             {gameWon ? (
@@ -444,7 +444,7 @@ export default function VaultInterface() {
 
   // --- PLAYING SCREEN ---
   return (
-    <div className="min-h-screen bg-black text-green-400 font-mono p-4">
+    <div className="h-screen overflow-auto bg-black text-green-400 font-mono p-4">
       {/* Header */}
       <div className="max-w-5xl mx-auto">
         <div className="border-2 border-green-400 p-4 mb-4 bg-black/50">

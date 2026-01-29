@@ -238,7 +238,7 @@ export default function HumanishGame() {
   const isCorrect = userGuess === partnerType;
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-pink-100 to-cyan-100 p-4 font-mono">
+    <div className="h-screen overflow-auto bg-gradient-to-br from-pink-100 to-cyan-100 p-4 font-mono">
       <div className="max-w-2xl mx-auto">
         {/* Header */}
         <div className="text-center mb-8">
