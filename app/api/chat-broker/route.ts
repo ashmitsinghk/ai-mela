@@ -1,94 +1,72 @@
 import { NextRequest, NextResponse } from "next/server";
 
-// In-memory message queue (resets on server restart)
-const messageQueues: Map<string, any[]> = new Map();
-const activeConnections: Map<string, { type: "player" | "volunteer"; lastSeen: number }> = new Map();
+// Simple in-memory storage for 90-second chats
+const channels = new Map<string, {
+  messages: Array<{ id: string; sender: string; text: string }>;
+  volunteerChoice: "chat" | "ai" | null;
+  createdAt: number;
+}>();
 
-// Clean up old sessions every 2 minutes
+// Auto-cleanup after 3 minutes
 setInterval(() => {
   const now = Date.now();
-  for (const [sessionId, conn] of activeConnections.entries()) {
-    if (now - conn.lastSeen > 120000) { // 2 minutes
-      messageQueues.delete(sessionId);
-      activeConnections.delete(sessionId);
-    }
+  for (const [id, data] of channels.entries()) {
+    if (now - data.createdAt > 180000) channels.delete(id);
   }
-}, 120000);
+}, 60000);
 
 export async function POST(req: NextRequest) {
-  try {
-    const { action, sessionId, message, userType } = await req.json();
-
-    if (!sessionId) {
-      return NextResponse.json({ error: "Session ID required" }, { status: 400 });
-    }
-
-    // Initialize queue if it doesn't exist
-    if (!messageQueues.has(sessionId)) {
-      messageQueues.set(sessionId, []);
-    }
-
-    if (action === "send") {
-      // Add message to queue
-      const messages = messageQueues.get(sessionId)!;
-      messages.push({
-        id: Date.now().toString(),
-        sender: userType,
-        text: message,
-        timestamp: Date.now(),
-      });
-      
-      // Update last seen
-      activeConnections.set(sessionId, { type: userType, lastSeen: Date.now() });
-      
-      return NextResponse.json({ success: true });
-    }
-
-    if (action === "poll") {
-      // Get messages since lastMessageId
-      const { lastMessageId } = await req.json();
-      const messages = messageQueues.get(sessionId) || [];
-      
-      const lastIndex = lastMessageId 
-        ? messages.findIndex(m => m.id === lastMessageId)
-        : -1;
-      
-      const newMessages = messages.slice(lastIndex + 1);
-      
-      // Update last seen
-      activeConnections.set(sessionId, { type: userType, lastSeen: Date.now() });
-      
-      return NextResponse.json({ messages: newMessages });
-    }
-
-    if (action === "join") {
-      // Register connection
-      activeConnections.set(sessionId, { type: userType, lastSeen: Date.now() });
-      return NextResponse.json({ success: true, sessionId });
-    }
-
-    return NextResponse.json({ error: "Invalid action" }, { status: 400 });
-  } catch (error) {
-    console.error("Chat broker error:", error);
-    return NextResponse.json({ error: "Internal error" }, { status: 500 });
+  const { sessionId, message, sender, decision } = await req.json();
+  
+  if (!sessionId) {
+    return NextResponse.json({ error: "sessionId required" }, { status: 400 });
   }
+
+  // Initialize channel if needed
+  if (!channels.has(sessionId)) {
+    channels.set(sessionId, { messages: [], volunteerChoice: null, createdAt: Date.now() });
+  }
+
+  const channel = channels.get(sessionId)!;
+
+  // Send message
+  if (message && sender) {
+    channel.messages.push({
+      id: `${Date.now()}_${Math.random()}`,
+      sender,
+      text: message,
+    });
+    return NextResponse.json({ success: true });
+  }
+
+  // Set volunteer decision
+  if (decision) {
+    channel.volunteerChoice = decision;
+    return NextResponse.json({ success: true });
+  }
+
+  return NextResponse.json({ error: "Invalid request" }, { status: 400 });
 }
 
 export async function GET(req: NextRequest) {
-  const searchParams = req.nextUrl.searchParams;
-  const sessionId = searchParams.get("sessionId");
-  const lastMessageId = searchParams.get("lastMessageId");
+  const sessionId = req.nextUrl.searchParams.get("sessionId");
+  const lastId = req.nextUrl.searchParams.get("lastId");
 
   if (!sessionId) {
-    return NextResponse.json({ error: "Session ID required" }, { status: 400 });
+    return NextResponse.json({ error: "sessionId required" }, { status: 400 });
   }
 
-  const messages = messageQueues.get(sessionId) || [];
-  const lastIndex = lastMessageId 
-    ? messages.findIndex(m => m.id === lastMessageId)
-    : -1;
-  
-  const newMessages = messages.slice(lastIndex + 1);
-  
-  return NextResponse.json({ messages: newMessages });
+  const channel = channels.get(sessionId);
+  if (!channel) {
+    return NextResponse.json({ messages: [], decision: null });
+  }
+
+  // Get new messages since lastId
+  const lastIndex = lastId ? channel.messages.findIndex(m => m.id === lastId) : -1;
+  const newMessages = channel.messages.slice(lastIndex + 1);
+
+  return NextResponse.json({ 
+    messages: newMessages, 
+    decision: channel.volunteerChoice 
+  });
 }

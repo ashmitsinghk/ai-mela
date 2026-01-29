@@ -15,106 +15,108 @@ export default function HumanishGame() {
   const [messages, setMessages] = useState<Message[]>([]);
   const [inputText, setInputText] = useState("");
   const [partnerType, setPartnerType] = useState<PartnerType | null>(null);
-  const [isBotHijacked, setIsBotHijacked] = useState(false);
   const [isWaitingForReply, setIsWaitingForReply] = useState(false);
-  const [gameEnded, setGameEnded] = useState(false);
   const [userGuess, setUserGuess] = useState<PartnerType | null>(null);
   const [showResult, setShowResult] = useState(false);
-  const [sessionCode, setSessionCode] = useState<string>("");
+  const [gameEnded, setGameEnded] = useState(false);
   const [sessionId, setSessionId] = useState<string>("");
-  const [connected, setConnected] = useState(false);
+  const [backgroundTimeout, setBackgroundTimeout] = useState(15);
 
-  const lastPartnerMessageTime = useRef<number>(Date.now());
-  const failoverTimeout = useRef<NodeJS.Timeout | null>(null);
   const lastMessageId = useRef<string | null>(null);
   const pollInterval = useRef<NodeJS.Timeout | null>(null);
+  const decisionCheckInterval = useRef<NodeJS.Timeout | null>(null);
 
-  // Initialize game
-  const startGame = () => {
-    const randomType: PartnerType = Math.random() > 0.5 ? "human" : "ai";
-    setPartnerType(randomType);
+  // Start game - create session and check for volunteer in background
+  const startGame = async () => {
+    // Clear any existing intervals before starting
+    if (decisionCheckInterval.current) {
+      clearInterval(decisionCheckInterval.current);
+    }
+    if (pollInterval.current) {
+      clearInterval(pollInterval.current);
+    }
+
+    const newSessionId = `session_${Date.now()}`;
+    setSessionId(newSessionId);
     setGameStarted(true);
+    setGameEnded(false);
     setTimeLeft(90);
     setMessages([]);
-    setIsBotHijacked(randomType === "ai");
-    setGameEnded(false);
     setUserGuess(null);
     setShowResult(false);
-    lastPartnerMessageTime.current = Date.now();
+    setPartnerType(null);
+    setBackgroundTimeout(15);
+    lastMessageId.current = null;
 
-    if (randomType === "human" && sessionCode) {
-      // Connect with volunteer using session code
-      const fullSessionId = `session_${sessionCode}`;
-      setSessionId(fullSessionId);
-      joinSession(fullSessionId);
-    } else {
-      // Send initial greeting from AI
-      setTimeout(() => {
-        sendBotMessage("hey whats up lol");
-      }, 1000);
-    }
-  };
-
-  // Join session
-  const joinSession = async (id: string) => {
+    // Start checking for volunteer decision in background
     try {
-      await fetch("/api/chat-broker", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          action: "join",
-          sessionId: id,
-          userType: "player",
-        }),
-      });
-      setConnected(true);
-      // Start polling for volunteer messages
-      pollInterval.current = setInterval(pollMessages, 500);
+      decisionCheckInterval.current = setInterval(checkVolunteerDecision, 500);
     } catch (error) {
-      console.error("Failed to join session:", error);
+      console.error("Failed to join:", error);
     }
   };
 
-  // Poll for new messages from volunteer
-  const pollMessages = async () => {
-    if (!sessionId || !connected) return;
+  // Check volunteer decision
+  const checkVolunteerDecision = async () => {
+    if (!sessionId) return;
 
     try {
-      const response = await fetch(
-        `/api/chat-broker?sessionId=${sessionId}&lastMessageId=${lastMessageId.current || ""}`
-      );
+      const response = await fetch(`/api/chat-broker?sessionId=${sessionId}&lastId=${lastMessageId.current || ""}`);
       const data = await response.json();
 
-      if (data.messages && data.messages.length > 0) {
-        data.messages.forEach((msg: any) => {
-          if (msg.sender === "volunteer") {
-            setMessages((prev) => [...prev, { sender: "partner", text: msg.text }]);
-            lastPartnerMessageTime.current = Date.now();
-            setIsWaitingForReply(false);
-            
-            // Clear failover timeout since volunteer responded
-            if (failoverTimeout.current) {
-              clearTimeout(failoverTimeout.current);
-            }
-          }
-          lastMessageId.current = msg.id;
-        });
+      if (data.decision === "chat") {
+        setPartnerType("human");
+        if (decisionCheckInterval.current) {
+          clearInterval(decisionCheckInterval.current);
+        }
+        pollInterval.current = setInterval(pollMessages, 500);
+      } else if (data.decision === "ai") {
+        connectToAI();
       }
     } catch (error) {
-      console.error("Polling error:", error);
+      console.error("Decision check error:", error);
     }
   };
 
-  // Game timer
+  // Connect to AI (volunteer passed or timeout)
+  const connectToAI = () => {
+    setPartnerType("ai");
+    if (decisionCheckInterval.current) {
+      clearInterval(decisionCheckInterval.current);
+    }
+    // Send initial AI greeting
+    setTimeout(() => {
+      sendBotMessage("hey whats up lol");
+    }, 1000);
+  };
+
+  // Background timeout counter (hidden from user)
   useEffect(() => {
-    if (!gameStarted || gameEnded) return;
+    if (!gameStarted || gameEnded || partnerType) return;
+
+    const timer = setInterval(() => {
+      setBackgroundTimeout((prev) => {
+        if (prev <= 1) {
+          // Timeout - connect to AI
+          connectToAI();
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+
+    return () => clearInterval(timer);
+  }, [gameStarted, gameEnded, partnerType]);
+
+  // Game timer - only starts when connected to partner (AI or human)
+  useEffect(() => {
+    if (!gameStarted || gameEnded || !partnerType) return;
 
     const timer = setInterval(() => {
       setTimeLeft((prev) => {
         if (prev <= 1) {
           setGameEnded(true);
           clearInterval(timer);
-          // Cleanup polling when game ends
           if (pollInterval.current) {
             clearInterval(pollInterval.current);
           }
@@ -130,36 +132,31 @@ export default function HumanishGame() {
         clearInterval(pollInterval.current);
       }
     };
-  }, [gameStarted, gameEnded]);
+  }, [gameStarted, gameEnded, partnerType]);
 
-  // Volunteer failover mechanism
-  useEffect(() => {
-    if (!gameStarted || gameEnded || isBotHijacked || !isWaitingForReply) return;
+  // Poll for new messages from volunteer
+  const pollMessages = async () => {
+    if (!sessionId || !gameStarted || gameEnded) return;
 
-    // Clear existing timeout
-    if (failoverTimeout.current) {
-      clearTimeout(failoverTimeout.current);
-    }
+    try {
+      const response = await fetch(`/api/chat-broker?sessionId=${sessionId}&lastId=${lastMessageId.current || ""}`);
+      const data = await response.json();
 
-    // Set 15-second failover
-    failoverTimeout.current = setTimeout(() => {
-      console.log("Volunteer timeout - switching to bot");
-      setIsBotHijacked(true);
-      setIsWaitingForReply(false);
-      // Send a delayed response from bot
-      setTimeout(() => {
-        sendBotMessage("sorry was afk lol");
-      }, 500);
-    }, 15000);
-
-    return () => {
-      if (failoverTimeout.current) {
-        clearTimeout(failoverTimeout.current);
+      if (data.messages && data.messages.length > 0) {
+        data.messages.forEach((msg: any) => {
+          if (msg.sender === "volunteer") {
+            setMessages((prev) => [...prev, { sender: "partner", text: msg.text }]);
+            setIsWaitingForReply(false);
+          }
+          lastMessageId.current = msg.id;
+        });
       }
-    };
-  }, [isWaitingForReply, gameStarted, gameEnded, isBotHijacked]);
+    } catch (error) {
+      console.error("Polling error:", error);
+    }
+  };
 
-  // Send message to Groq API
+  // Send message to AI
   const sendBotMessage = async (userMessage?: string) => {
     try {
       const messagesToSend = userMessage
@@ -179,7 +176,6 @@ export default function HumanishGame() {
           ...prev,
           { sender: "partner", text: data.reply },
         ]);
-        lastPartnerMessageTime.current = Date.now();
         setIsWaitingForReply(false);
       }
     } catch (error) {
@@ -188,20 +184,18 @@ export default function HumanishGame() {
     }
   };
 
-  // Mock volunteer response (simulate human behavior) - NO LONGER USED
+  // Send message to volunteer
   const sendVolunteerMessage = async (text: string) => {
-    if (!sessionId || !connected) return;
+    if (!sessionId) return;
     
-    // Send message to volunteer via broker
     try {
       await fetch("/api/chat-broker", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          action: "send",
           sessionId,
           message: text,
-          userType: "player",
+          sender: "player",
         }),
       });
     } catch (error) {
@@ -211,7 +205,7 @@ export default function HumanishGame() {
 
   // Handle sending message
   const handleSend = async () => {
-    if (!inputText.trim() || gameEnded) return;
+    if (!inputText.trim() || !gameStarted || gameEnded) return;
 
     const messageText = inputText.trim();
     const newMessage: Message = { sender: "me", text: messageText };
@@ -220,12 +214,10 @@ export default function HumanishGame() {
     setIsWaitingForReply(true);
 
     // Route to bot or volunteer
-    if (isBotHijacked) {
+    if (partnerType === "ai") {
       await sendBotMessage(messageText);
     } else {
-      // Send to volunteer via broker
       await sendVolunteerMessage(messageText);
-      // Failover will trigger after 15 seconds if no response
     }
   };
 
@@ -259,23 +251,6 @@ export default function HumanishGame() {
               out which one!
             </p>
             
-            {/* Session Code Input */}
-            <div className="mb-6">
-              <label className="block font-bold mb-2 text-left">
-                Got a volunteer code? Enter it here (optional):
-              </label>
-              <input
-                type="text"
-                value={sessionCode}
-                onChange={(e) => setSessionCode(e.target.value)}
-                placeholder="Enter session code..."
-                className="w-full p-3 border-2 border-black focus:outline-none focus:ring-2 focus:ring-pink-400 mb-2"
-              />
-              <p className="text-sm text-gray-600 text-left">
-                Leave empty to get matched with AI or random volunteer
-              </p>
-            </div>
-            
             <button
               onClick={startGame}
               className="bg-pink-400 hover:bg-pink-500 text-black font-bold py-3 px-8 border-4 border-black shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] hover:shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] hover:translate-x-[2px] hover:translate-y-[2px] transition-all"
@@ -304,7 +279,7 @@ export default function HumanishGame() {
               <div className="h-96 overflow-y-auto p-4 space-y-3">
                 {messages.length === 0 && (
                   <p className="text-gray-400 text-center mt-20">
-                    Waiting for chat to start...
+                    Chat started! Say hello...
                   </p>
                 )}
                 {messages.map((msg, idx) => (
@@ -335,81 +310,71 @@ export default function HumanishGame() {
               </div>
 
               {/* Input */}
-              {!gameEnded && (
-                <div className="border-t-4 border-black p-4 flex gap-2">
-                  <input
-                    type="text"
-                    value={inputText}
-                    onChange={(e) => setInputText(e.target.value)}
-                    onKeyDown={(e) => e.key === "Enter" && handleSend()}
-                    placeholder="Type your message..."
-                    className="flex-1 p-3 border-2 border-black focus:outline-none focus:ring-2 focus:ring-pink-400"
-                    disabled={isWaitingForReply}
-                  />
-                  <button
-                    onClick={handleSend}
-                    disabled={!inputText.trim() || isWaitingForReply}
-                    className="bg-cyan-400 hover:bg-cyan-500 disabled:bg-gray-300 text-black font-bold py-3 px-6 border-2 border-black shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] hover:shadow-[1px_1px_0px_0px_rgba(0,0,0,1)] hover:translate-x-[1px] hover:translate-y-[1px] transition-all disabled:cursor-not-allowed"
-                  >
-                    SEND
-                  </button>
-                </div>
-              )}
+              <div className="border-t-4 border-black p-4 flex gap-2">
+                <input
+                  type="text"
+                  value={inputText}
+                  onChange={(e) => setInputText(e.target.value)}
+                  onKeyDown={(e) => e.key === "Enter" && handleSend()}
+                  placeholder="Type your message..."
+                  className="flex-1 p-3 border-2 border-black focus:outline-none focus:ring-2 focus:ring-pink-400"
+                  disabled={isWaitingForReply}
+                />
+                <button
+                  onClick={handleSend}
+                  disabled={!inputText.trim() || isWaitingForReply}
+                  className="bg-cyan-400 hover:bg-cyan-500 disabled:bg-gray-300 text-black font-bold py-3 px-6 border-2 border-black shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] hover:shadow-[1px_1px_0px_0px_rgba(0,0,0,1)] hover:translate-x-[1px] hover:translate-y-[1px] transition-all disabled:cursor-not-allowed"
+                >
+                  SEND
+                </button>
+              </div>
             </div>
 
             {/* Guess Section */}
             {gameEnded && !showResult && (
-              <div className="bg-white border-4 border-black shadow-[8px_8px_0px_0px_rgba(0,0,0,1)] p-6 text-center">
-                <h2 className="text-2xl font-bold mb-4">TIME'S UP!</h2>
-                <p className="mb-6 text-gray-700">
-                  Was your chat partner a human or an AI?
-                </p>
-                <div className="flex gap-4 justify-center">
-                  <button
-                    onClick={() => submitGuess("human")}
-                    className="bg-pink-400 hover:bg-pink-500 text-black font-bold py-4 px-8 border-4 border-black shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] hover:shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] hover:translate-x-[2px] hover:translate-y-[2px] transition-all"
-                  >
-                    👤 HUMAN
-                  </button>
-                  <button
-                    onClick={() => submitGuess("ai")}
-                    className="bg-cyan-400 hover:bg-cyan-500 text-black font-bold py-4 px-8 border-4 border-black shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] hover:shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] hover:translate-x-[2px] hover:translate-y-[2px] transition-all"
-                  >
-                    🤖 AI
-                  </button>
-                </div>
-              </div>
-            )}
-
-            {/* Result */}
-            {showResult && (
-              <div
-                className={`border-4 border-black shadow-[8px_8px_0px_0px_rgba(0,0,0,1)] p-6 text-center ${
-                  isCorrect ? "bg-green-300" : "bg-red-300"
-                }`}
+          <div className="bg-white border-4 border-black shadow-[8px_8px_0px_0px_rgba(0,0,0,1)] p-6 text-center">
+            <h2 className="text-2xl font-bold mb-4">TIME'S UP!</h2>
+            <p className="mb-6 text-gray-700">
+              Was your chat partner a human or an AI?
+            </p>
+            <div className="flex gap-4 justify-center">
+              <button
+                onClick={() => submitGuess("human")}
+                className="bg-pink-400 hover:bg-pink-500 text-black font-bold py-4 px-8 border-4 border-black shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] hover:shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] hover:translate-x-[2px] hover:translate-y-[2px] transition-all"
               >
-                <h2 className="text-3xl font-bold mb-2">
-                  {isCorrect ? "🎉 CORRECT!" : "❌ WRONG!"}
-                </h2>
-                <p className="text-xl mb-4">
-                  It was {partnerType === "ai" ? "an AI" : "a human"}!
-                </p>
-                <button
-                  onClick={startGame}
-                  className="bg-white hover:bg-gray-100 text-black font-bold py-3 px-8 border-4 border-black shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] hover:shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] hover:translate-x-[2px] hover:translate-y-[2px] transition-all"
-                >
-                  PLAY AGAIN
-                </button>
-              </div>
-            )}
-          </>
+                👤 HUMAN
+              </button>
+              <button
+                onClick={() => submitGuess("ai")}
+                className="bg-cyan-400 hover:bg-cyan-500 text-black font-bold py-4 px-8 border-4 border-black shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] hover:shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] hover:translate-x-[2px] hover:translate-y-[2px] transition-all"
+              >
+                🤖 AI
+              </button>
+            </div>
+          </div>
         )}
 
-        {/* Debug Info (remove in production) */}
-        {gameStarted && (
-          <div className="mt-4 p-3 bg-gray-800 text-white text-xs font-mono border-2 border-black">
-            <p>Debug: Partner = {partnerType} | Bot Hijacked = {String(isBotHijacked)}</p>
+        {showResult && (
+          <div
+            className={`border-4 border-black shadow-[8px_8px_0px_0px_rgba(0,0,0,1)] p-6 text-center ${
+              isCorrect ? "bg-green-300" : "bg-red-300"
+            }`}
+          >
+            <h2 className="text-3xl font-bold mb-2">
+              {isCorrect ? "🎉 CORRECT!" : "❌ WRONG!"}
+            </h2>
+            <p className="text-xl mb-4">
+              It was {partnerType === "ai" ? "an AI" : "a human"}!
+            </p>
+            <button
+              onClick={startGame}
+              className="bg-white hover:bg-gray-100 text-black font-bold py-3 px-8 border-4 border-black shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] hover:shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] hover:translate-x-[2px] hover:translate-y-[2px] transition-all"
+            >
+              PLAY AGAIN
+            </button>
           </div>
+        )}
+        </>
         )}
       </div>
     </div>

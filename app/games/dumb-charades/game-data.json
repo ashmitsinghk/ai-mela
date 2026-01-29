@@ -1,0 +1,77 @@
+[
+  {
+    "id": 1,
+    "image": "/Dumb-Charades/img_1.png",
+    "prompt": "A cat in a space suit floating in a giant bowl of cereal."
+  },
+  {
+    "id": 2,
+    "image": "/Dumb-Charades/img_2.png",
+    "prompt": "A person trying to take a nap on a bed made of giant cacti with a smiley cloud above."
+  },
+  {
+    "id": 3,
+    "image": "/Dumb-Charades/img_3.png",
+    "prompt": "A person using a giant slice of pepperoni pizza as a surfboard in the ocean."
+  },
+  {
+    "id": 4,
+    "image": "/Dumb-Charades/img_4.png",
+    "prompt": "A student trying to cook Maggi noodles inside a high-tech laboratory using a laser beam in a cloud bowl."
+  },
+  {
+    "id": 5,
+    "image": "/Dumb-Charades/img_5.png",
+    "prompt": "A runway model wearing a long dress made entirely of inflated colorful balloons and holding a cactus as a handbag with coffee cup shoes."
+  },
+  {
+    "id": 6,
+    "image": "/Dumb-Charades/img_6.png",
+    "prompt": "A snail with a rocket engine strapped to its shell racing a Ferrari on a track made of butter."
+  },
+  {
+    "id": 7,
+    "image": "/Dumb-Charades/img_7.png",
+    "prompt": "A polar bear wearing a Hawaiian shirt and sunglasses, climbing on a floating hourglass in a swimming pool."
+  },
+  {
+    "id": 8,
+    "image": "/Dumb-Charades/img_8.png",
+    "prompt": "A person playing chess against a golden retriever while they both sit inside a giant washing machine."
+  },
+  {
+    "id": 9,
+    "image": "/Dumb-Charades/img_9.png",
+    "prompt": "A giant octopus working as a barista, trying to make 8 cups of coffee at once with all its tentacles."
+  },
+  {
+    "id": 10,
+    "image": "/Dumb-Charades/img_10.png",
+    "prompt": "A caveman trying to fix a giant, glowing hologram computer with a wooden club."
+  },
+  {
+    "id": 11,
+    "image": "/Dumb-Charades/img_11.png",
+    "prompt": "A person riding a giant, angry-looking pigeon through a futuristic city during a thunderstorm."
+  },
+  {
+    "id": 12,
+    "image": "/Dumb-Charades/img_12.png",
+    "prompt": "A robot and a mannequin having a romantic candlelit dinner, but they are eating nuts and bolts."
+  },
+  {
+    "id": 13,
+    "image": "/Dumb-Charades/img_13.png",
+    "prompt": "A superhero in full costume at a public laundromat, sadly waiting for their cape to dry in disney fairytale"
+  },
+  {
+    "id": 14,
+    "image": "/Dumb-Charades/img_14.png",
+    "prompt": "A giant crab playing a grand piano on a beach, but the piano keys are made of corn on the cob."
+  },
+  {
+    "id": 15,
+    "image": "/Dumb-Charades/img_15.png",
+    "prompt": "An alien and an astronaut sharing a giant watermelon on the moon while Earth explodes in the background (as a firework)."
+  }
+]
