@@ -49,6 +49,12 @@ export default function GamesPage() {
       path: '/games/scavenger-hunt',
       description: 'Find real objects matching emojis!',
       color: 'bg-indigo-400'
+    },
+    {
+      name: 'Meme Recreator',
+      path: '/games/meme-recreator',
+      description: 'Recreate viral memes with your body!',
+      color: 'bg-red-400'
     }
   ];
 
