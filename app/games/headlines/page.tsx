@@ -44,6 +44,7 @@ export default function HeadlinesGame() {
   const [roundResults, setRoundResults] = useState<RoundResult[]>([]);
   const [generatingHeadlines, setGeneratingHeadlines] = useState(false);
   const [usedHeadlines, setUsedHeadlines] = useState<Set<string>>(new Set());
+  const [timeLeft, setTimeLeft] = useState(30);
 
   const TOTAL_ROUNDS = 5;
   const ENTRY_FEE = 20;
@@ -59,6 +60,7 @@ export default function HeadlinesGame() {
     setSelectedIndex(null);
     setRoundResults([]);
     setUsedHeadlines(new Set());
+    setTimeLeft(30);
   };
 
   // AUTH: Check player
@@ -152,12 +154,55 @@ export default function HeadlinesGame() {
       
       setHeadlines(shuffledOptions);
       setSelectedIndex(null);
+      setTimeLeft(30); // Reset timer for new round
     } catch (error) {
       console.error('Failed to generate round:', error);
       alert('Failed to generate headlines. Please try again.');
     } finally {
       setGeneratingHeadlines(false);
     }
+  };
+
+  // Timer countdown effect
+  useEffect(() => {
+    if (gameState !== 'PLAYING' || selectedIndex !== null || generatingHeadlines) return;
+
+    if (timeLeft <= 0) {
+      // Time's up - treat as incorrect answer
+      handleTimeUp();
+      return;
+    }
+
+    const timer = setInterval(() => {
+      setTimeLeft((prev) => prev - 1);
+    }, 1000);
+
+    return () => clearInterval(timer);
+  }, [timeLeft, gameState, selectedIndex, generatingHeadlines]);
+
+  // Handle time up scenario
+  const handleTimeUp = () => {
+    const realHeadline = headlines.find(h => h.isReal)!;
+    
+    const result: RoundResult = {
+      round: currentRound,
+      correct: false,
+      selectedHeadline: 'Time expired',
+      correctHeadline: realHeadline.text,
+    };
+
+    setRoundResults([...roundResults, result]);
+    setSelectedIndex(-1); // Use -1 to indicate time expired
+
+    // Move to next round after delay
+    setTimeout(() => {
+      if (currentRound < TOTAL_ROUNDS) {
+        setCurrentRound(currentRound + 1);
+        generateGameRound();
+      } else {
+        finishGame([...roundResults, result]);
+      }
+    }, 2000);
   };
 
   // Handle headline selection
@@ -225,11 +270,17 @@ export default function HeadlinesGame() {
   const totalReward = correctCount * POINTS_PER_CORRECT;
 
   return (
-    <div className="h-screen overflow-auto bg-gradient-to-br from-blue-50 via-purple-50 to-pink-50 p-4">
+    <div className="h-screen overflow-auto p-4" style={{
+      backgroundImage: `url("/Newspaper collage.jpeg")`,
+      backgroundSize: 'cover',
+      backgroundPosition: 'center',
+      backgroundRepeat: 'no-repeat',
+      backgroundAttachment: 'fixed',
+    }}>
       <div className="max-w-4xl mx-auto">
         {/* AUTH PHASE */}
         {gameState === 'AUTH' && (
-          <div className="min-h-screen flex items-center justify-center">
+          <div className="flex items-center justify-center min-h-[calc(100vh-2rem)]">
             <div className="bg-white rounded-2xl shadow-2xl p-8 w-full max-w-md border-4 border-gray-800">
               <div className="text-center mb-6">
                 <Newspaper className="w-16 h-16 mx-auto mb-4 text-blue-600" />
@@ -271,7 +322,7 @@ export default function HeadlinesGame() {
 
         {/* BET PHASE */}
         {gameState === 'BET' && playerData && (
-          <div className="min-h-screen flex items-center justify-center">
+          <div className="flex items-center justify-center min-h-[calc(100vh-2rem)]">
             <div className="bg-white rounded-2xl shadow-2xl p-8 w-full max-w-md border-4 border-gray-800">
               <div className="text-center mb-6">
                 <h2 className="text-3xl font-bold text-gray-800 mb-2">Welcome, {playerData.name}!</h2>
@@ -316,13 +367,19 @@ export default function HeadlinesGame() {
 
         {/* PLAYING PHASE */}
         {gameState === 'PLAYING' && (
-          <div className="min-h-screen py-8">
-            <div className="bg-white rounded-2xl shadow-2xl p-8 border-4 border-gray-800">
+          <div className="flex items-center justify-center min-h-[calc(100vh-2rem)]">
+            <div className="bg-white rounded-2xl shadow-2xl p-8 w-full border-4 border-gray-800">
               {/* Header */}
               <div className="flex justify-between items-center mb-6">
                 <div>
                   <h2 className="text-2xl font-bold text-gray-800">Round {currentRound}/{TOTAL_ROUNDS}</h2>
                   <p className="text-sm text-gray-600">Score: {correctCount}/{currentRound - 1}</p>
+                </div>
+                <div className="text-center">
+                  <div className={`text-4xl font-bold mb-1 ${
+                    timeLeft <= 5 ? 'text-red-600 animate-pulse' : 'text-blue-600'
+                  }`}>{timeLeft}s</div>
+                  <div className="text-xs text-gray-600">Time Left</div>
                 </div>
                 <div className="text-right">
                   <div className="text-lg font-bold text-green-600">💎 {playerData?.stonks}</div>
@@ -418,7 +475,7 @@ export default function HeadlinesGame() {
 
         {/* RESULT PHASE */}
         {gameState === 'RESULT' && (
-          <div className="min-h-screen flex items-center justify-center">
+          <div className="flex items-center justify-center min-h-[calc(100vh-2rem)]">
             <div className="bg-white rounded-2xl shadow-2xl p-8 w-full max-w-md border-4 border-gray-800">
               <div className="text-center mb-6">
                 {correctCount >= 4 ? (

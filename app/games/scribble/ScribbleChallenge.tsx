@@ -365,8 +365,8 @@ export default function ScribbleChallenge() {
     }
 
     const now = Date.now();
-    if (now - lastAnalysisRef.current < 3000) {
-      console.log('⏱️ Throttled (< 3s since last call)');
+    if (now - lastAnalysisRef.current < 1500) {
+      console.log('⏱️ Throttled (< 1.5s since last call)');
       return;
     }
     lastAnalysisRef.current = now;
@@ -439,7 +439,7 @@ export default function ScribbleChallenge() {
       }
       
       analyzeCurrentDrawing();
-    }, 3000);
+    }, 1500);
     
     pollingIntervalRef.current = intervalId;
     console.log('✅ Polling interval started with ID:', intervalId);
@@ -594,7 +594,10 @@ export default function ScribbleChallenge() {
 
       {/* BET PHASE */}
       {gameState === 'BET' && playerData && (
-        <div className="h-screen overflow-auto bg-neo-yellow text-black font-mono p-4 md:p-8 flex items-center justify-center">
+        <div className="h-screen overflow-auto text-black font-mono p-4 md:p-8 flex items-center justify-center" style={{
+          background: '#2c5f99',
+          backgroundImage: `url("data:image/svg+xml,%3Csvg width='60' height='60' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M10 10h5v5h-5zm20 0h5v5h-5zm20 0h5v5h-5zM10 30h5v5h-5zm20 0h5v5h-5zm20 0h5v5h-5z' fill='%23234a7a' fill-opacity='0.4'/%3E%3C/svg%3E")`
+        }}>
           <div className="max-w-md w-full bg-white border-8 border-black shadow-[16px_16px_0px_#000] p-8">
             <div className="text-center mb-6">
               <div className="inline-flex items-center justify-center w-20 h-20 bg-neo-green border-4 border-black mb-4">
@@ -651,6 +654,10 @@ export default function ScribbleChallenge() {
 
       {/* GAME PHASE */}
       {(gameState === 'idle' || gameState === 'playing' || gameState === 'won' || gameState === 'lost') && (
+        <div className="min-h-screen py-6 px-4" style={{
+          background: '#2c5f99',
+          backgroundImage: `url("data:image/svg+xml,%3Csvg width='60' height='60' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M10 10h5v5h-5zm20 0h5v5h-5zm20 0h5v5h-5zM10 30h5v5h-5zm20 0h5v5h-5zm20 0h5v5h-5z' fill='%23234a7a' fill-opacity='0.4'/%3E%3C/svg%3E")`
+        }}>
         <div className="max-w-7xl mx-auto">
         
         {/* Header */}
@@ -909,8 +916,10 @@ export default function ScribbleChallenge() {
           </div>
 
         </div>
-      </div>
+        </div>
+        </div>
       )}
+        
     </div>
   );
 }
