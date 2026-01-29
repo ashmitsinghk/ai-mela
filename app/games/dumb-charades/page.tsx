@@ -4,8 +4,16 @@ import { useState, useEffect } from 'react';
 import Image from 'next/image';
 import { GameEntry, RoundData, GameState } from './types';
 import gameData from './game-data.json';
+import { supabase } from '@/utils/supabase';
+
+type GamePhase = 'AUTH' | 'BET' | 'PLAYING' | 'RESULT';
 
 export default function DumbCharadesGame() {
+  const [gamePhase, setGamePhase] = useState<GamePhase>('AUTH');
+  const [uid, setUid] = useState('');
+  const [playerData, setPlayerData] = useState<{ name: string | null; stonks: number } | null>(null);
+  const [authLoading, setAuthLoading] = useState(false);
+  
   const [gameState, setGameState] = useState<GameState>({
     round: 0,
     stonks: 0,
@@ -16,6 +24,75 @@ export default function DumbCharadesGame() {
   });
 
   const [isPressed, setIsPressed] = useState<string | null>(null);
+
+  // Auth: Check player
+  const checkPlayer = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setAuthLoading(true);
+    try {
+      const { data, error } = await supabase
+        .from('players')
+        .select('name, stonks')
+        .eq('uid', uid)
+        .single();
+
+      if (error || !data) {
+        alert('Player not found!');
+        setPlayerData(null);
+      } else {
+        setPlayerData(data);
+        setGamePhase('BET');
+      }
+    } finally {
+      setAuthLoading(false);
+    }
+  };
+
+  // Pay 20 Stonks and start game
+  const payAndStart = async () => {
+    if (!playerData || playerData.stonks < 20) {
+      alert('Insufficient Stonks! You need 20 Stonks to play.');
+      return;
+    }
+    setAuthLoading(true);
+
+    const { error: updateError } = await supabase
+      .from('players')
+      .update({ stonks: playerData.stonks - 20 })
+      .eq('uid', uid);
+
+    if (updateError) {
+      alert('Transaction Failed');
+      setAuthLoading(false);
+      return;
+    }
+
+    // Log Entry
+    await supabase.from('game_logs').insert({
+      player_uid: uid,
+      game_title: 'Dumb Charades',
+      result: 'PLAYING',
+      stonks_change: -20
+    });
+
+    setPlayerData({ ...playerData, stonks: playerData.stonks - 20 });
+    setGamePhase('PLAYING');
+    setAuthLoading(false);
+  };
+
+  const resetToAuth = () => {
+    setGamePhase('AUTH');
+    setUid('');
+    setPlayerData(null);
+    setGameState({
+      round: 0,
+      stonks: 0,
+      currentRoundData: null,
+      gameOver: false,
+      selectedAnswer: null,
+      showFeedback: false,
+    });
+  };
 
   // Shuffle array utility
   const shuffleArray = <T,>(array: T[]): T[] => {
@@ -85,7 +162,7 @@ export default function DumbCharadesGame() {
       // Move to next round after 1.5 seconds
       setTimeout(() => {
         if (gameState.round >= 4) {
-          setGameState(prev => ({ ...prev, gameOver: true }));
+          endGame();
         } else {
           setGameState(prev => ({
             ...prev,
@@ -99,15 +176,176 @@ export default function DumbCharadesGame() {
     }, 200);
   };
 
+  // End game and update stonks
+  const endGame = async () => {
+    setGameState(prev => ({ ...prev, gameOver: true }));
+    setGamePhase('RESULT');
+
+    // Calculate winnings
+    const totalStonks = gameState.stonks;
+    
+    if (totalStonks > 0 && uid) {
+      // Add winnings to player's stonks
+      const { error: updateError } = await supabase
+        .from('players')
+        .update({ stonks: (playerData?.stonks || 0) + totalStonks })
+        .eq('uid', uid);
+
+      if (!updateError) {
+        // Log the game result
+        await supabase.from('game_logs').insert({
+          player_uid: uid,
+          game_title: 'Dumb Charades',
+          result: 'WIN',
+          stonks_change: totalStonks
+        });
+
+        // Update local player data
+        setPlayerData(prev => prev ? { ...prev, stonks: prev.stonks + totalStonks } : null);
+      }
+    }
+  };
+
+  const playAgain = () => {
+    setGamePhase('BET');
+    setGameState({
+      round: 0,
+      stonks: 0,
+      currentRoundData: null,
+      gameOver: false,
+      selectedAnswer: null,
+      showFeedback: false,
+    });
+  };
+
   // Initialize game on mount
   useEffect(() => {
-    startNewGame();
-  }, []);
+    if (gamePhase === 'PLAYING' && gameState.round === 0) {
+      startNewGame();
+    }
+  }, [gamePhase]);
 
-  if (gameState.gameOver) {
+  // AUTH SCREEN
+  if (gamePhase === 'AUTH') {
     return (
       <div className="min-h-screen bg-white relative overflow-hidden">
-        {/* Notebook Grid Background */}
+        <div 
+          className="absolute inset-0"
+          style={{
+            backgroundImage: `
+              linear-gradient(#dbeafe 1px, transparent 1px),
+              linear-gradient(90deg, #dbeafe 1px, transparent 1px)
+            `,
+            backgroundSize: '24px 24px',
+          }}
+        />
+        
+        <div className="relative z-10 container mx-auto px-4 py-12 flex items-center justify-center min-h-screen">
+          <div className="bg-white border-4 border-black shadow-[8px_8px_0px_0px_rgba(0,0,0,1)] p-8 max-w-md w-full">
+            <h1 className="text-4xl font-black uppercase text-center mb-8">
+              <span className="inline-block bg-[#A855F7] text-white px-6 py-3 -skew-x-6 border-4 border-black">
+                DUMB CHARADES
+              </span>
+            </h1>
+            
+            <form onSubmit={checkPlayer} className="space-y-4">
+              <div>
+                <label className="block text-lg font-bold uppercase mb-2">
+                  Enter Your UID
+                </label>
+                <input
+                  type="text"
+                  value={uid}
+                  onChange={(e) => setUid(e.target.value)}
+                  placeholder="Your UID..."
+                  className="w-full px-4 py-3 border-4 border-black font-bold text-lg focus:outline-none focus:ring-2 focus:ring-[#A855F7]"
+                  required
+                />
+              </div>
+              
+              <button
+                type="submit"
+                disabled={authLoading}
+                className="w-full bg-[#A855F7] text-white text-xl font-black uppercase py-3 px-6 border-4 border-black shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] hover:shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] hover:translate-x-[2px] hover:translate-y-[2px] transition-all active:shadow-none active:translate-x-[4px] active:translate-y-[4px] disabled:opacity-50"
+              >
+                {authLoading ? 'CHECKING...' : 'ENTER GAME'}
+              </button>
+            </form>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // BET SCREEN
+  if (gamePhase === 'BET') {
+    return (
+      <div className="min-h-screen bg-white relative overflow-hidden">
+        <div 
+          className="absolute inset-0"
+          style={{
+            backgroundImage: `
+              linear-gradient(#dbeafe 1px, transparent 1px),
+              linear-gradient(90deg, #dbeafe 1px, transparent 1px)
+            `,
+            backgroundSize: '24px 24px',
+          }}
+        />
+        
+        <div className="relative z-10 container mx-auto px-4 py-12 flex items-center justify-center min-h-screen">
+          <div className="bg-white border-4 border-black shadow-[8px_8px_0px_0px_rgba(0,0,0,1)] p-8 max-w-md w-full">
+            <h1 className="text-4xl font-black uppercase text-center mb-8">
+              <span className="inline-block bg-[#A855F7] text-white px-6 py-3 -skew-x-6 border-4 border-black">
+                READY TO PLAY?
+              </span>
+            </h1>
+            
+            <div className="mb-8">
+              <div className="bg-gray-100 border-4 border-black p-4 mb-4">
+                <p className="text-lg font-bold uppercase">Player: {playerData?.name || uid}</p>
+                <p className="text-2xl font-black text-[#22C55E] uppercase">
+                  Stonks: {playerData?.stonks}
+                </p>
+              </div>
+              
+              <div className="bg-[#A855F7] border-4 border-black p-6 text-white">
+                <p className="text-xl font-black uppercase text-center mb-2">ENTRY FEE</p>
+                <p className="text-5xl font-black text-center">20 STONKS</p>
+              </div>
+              
+              <div className="mt-6 space-y-2 text-sm font-bold">
+                <p>🎯 4 Rounds of image guessing</p>
+                <p>💰 +10 Stonks per correct answer</p>
+                <p>🎉 Max win: 40 Stonks!</p>
+              </div>
+            </div>
+
+            <div className="space-y-3">
+              <button
+                onClick={payAndStart}
+                disabled={authLoading || (playerData && playerData.stonks < 20)}
+                className="w-full bg-[#22C55E] text-white text-xl font-black uppercase py-3 px-6 border-4 border-black shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] hover:shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] hover:translate-x-[2px] hover:translate-y-[2px] transition-all active:shadow-none active:translate-x-[4px] active:translate-y-[4px] disabled:opacity-50"
+              >
+                {authLoading ? 'PROCESSING...' : 'PAY & PLAY'}
+              </button>
+              
+              <button
+                onClick={resetToAuth}
+                className="w-full bg-gray-300 text-black text-lg font-black uppercase py-2 px-6 border-4 border-black shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] hover:shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] hover:translate-x-[2px] hover:translate-y-[2px] transition-all"
+              >
+                BACK
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // RESULT SCREEN
+  if (gamePhase === 'RESULT' && gameState.gameOver) {
+    return (
+      <div className="min-h-screen bg-white relative overflow-hidden">
         <div 
           className="absolute inset-0"
           style={{
@@ -137,10 +375,17 @@ export default function DumbCharadesGame() {
             </div>
 
             <button
-              onClick={startNewGame}
-              className="w-full bg-[#A855F7] text-white text-2xl font-black uppercase py-4 px-8 border-4 border-black shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] hover:shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] hover:translate-x-[2px] hover:translate-y-[2px] transition-all active:shadow-none active:translate-x-[4px] active:translate-y-[4px]"
+              onClick={playAgain}
+              className="w-full bg-[#A855F7] text-white text-2xl font-black uppercase py-4 px-8 border-4 border-black shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] hover:shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] hover:translate-x-[2px] hover:translate-y-[2px] transition-all active:shadow-none active:translate-x-[4px] active:translate-y-[4px] mb-3"
             >
               PLAY AGAIN
+            </button>
+            
+            <button
+              onClick={resetToAuth}
+              className="w-full bg-gray-300 text-black text-xl font-black uppercase py-3 px-6 border-4 border-black shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] hover:shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] hover:translate-x-[2px] hover:translate-y-[2px] transition-all"
+            >
+              EXIT
             </button>
           </div>
         </div>
@@ -156,7 +401,6 @@ export default function DumbCharadesGame() {
 
   return (
     <div className="min-h-screen bg-white relative overflow-hidden">
-      {/* Notebook Grid Background */}
       <div 
         className="absolute inset-0"
         style={{
@@ -169,7 +413,6 @@ export default function DumbCharadesGame() {
       />
       
       <div className="relative z-10 container mx-auto px-4 py-8">
-        {/* Header */}
         <div className="mb-8">
           <h1 className="text-4xl md:text-6xl font-black uppercase text-center mb-4">
             <span className="inline-block bg-[#A855F7] text-white px-6 py-3 -skew-x-6 border-4 border-black shadow-[8px_8px_0px_0px_rgba(0,0,0,1)]">
@@ -190,7 +433,6 @@ export default function DumbCharadesGame() {
           </div>
         </div>
 
-        {/* Main Game Card */}
         <div className="max-w-2xl mx-auto">
           <div className="bg-white border-4 border-black shadow-[8px_8px_0px_0px_rgba(0,0,0,1)] p-6 mb-6">
             <div className="relative w-full aspect-video mb-6 border-4 border-black bg-gray-100">
@@ -207,7 +449,6 @@ export default function DumbCharadesGame() {
               WHAT IS THIS?
             </p>
 
-            {/* Options */}
             <div className="space-y-4">
               {options.map((option, index) => {
                 const isSelected = gameState.selectedAnswer === option;
@@ -240,7 +481,6 @@ export default function DumbCharadesGame() {
             </div>
           </div>
 
-          {/* Feedback Message */}
           {gameState.showFeedback && (
             <div className="text-center">
               <div className={`inline-block px-6 py-3 border-4 border-black font-black text-2xl uppercase ${
