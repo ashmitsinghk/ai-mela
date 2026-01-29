@@ -40,7 +40,7 @@ export default function LoginPage() {
 
             // Save session
             localStorage.setItem('user_uid', userId);
-            router.push('/portal');
+            router.push('/');
         } catch (error: any) {
             console.error('Login error:', error);
             // Show more specific error to help debug

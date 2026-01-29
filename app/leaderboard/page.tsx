@@ -33,8 +33,8 @@ const LeaderboardPage = () => {
                 const rankedData = data.map((p, index) => ({
                     ...p,
                     rank: index + 1,
-                    // Fallback name if missing (e.g. partial UID)
-                    name: p.name || `Player ${p.uid.substring(0, 5)}...`
+                    // Fallback name if missing
+                    name: p.name || `Player ${p.uid}`
                 }));
                 setPlayers(rankedData);
             }
@@ -95,8 +95,8 @@ const LeaderboardPage = () => {
                             <div className="order-2 md:order-1 flex-1 bg-white border-4 border-black p-4 flex flex-col items-center shadow-neo relative h-64 justify-end">
                                 <div className="absolute top-0 -mt-6 bg-gray-300 border-4 border-black p-2 rounded-full w-12 h-12 flex items-center justify-center font-bold text-xl">2</div>
                                 <Medal size={48} className="text-gray-400 mb-2" />
-                                <h3 className="font-heading text-2xl text-center leading-none mb-1">{topThree[1].name}</h3>
-                                <p className="font-mono text-sm text-gray-500 mb-2">{topThree[1].uid}</p>
+                                <h3 className="font-heading text-xl text-center leading-tight mb-1 break-words w-full">{topThree[1].name}</h3>
+                                <p className="font-mono text-xs text-gray-500 mb-2 break-all">{topThree[1].uid}</p>
                                 <div className="bg-neo-black text-neo-green font-mono font-bold px-3 py-1 text-lg w-full text-center">
                                     {topThree[1].stonks}
                                 </div>
@@ -110,8 +110,8 @@ const LeaderboardPage = () => {
                                     <Trophy size={80} className="text-black drop-shadow-md pb-2" />
                                 </div>
                                 <div className="absolute top-0 -mt-6 bg-neo-pink border-4 border-black p-2 rounded-full w-16 h-16 flex items-center justify-center font-bold text-3xl text-white">1</div>
-                                <h3 className="font-heading text-3xl text-center leading-none mb-1 mt-8">{topThree[0].name}</h3>
-                                <p className="font-mono text-sm text-black/70 mb-4 font-bold">{topThree[0].uid}</p>
+                                <h3 className="font-heading text-2xl text-center leading-tight mb-1 mt-8 break-words w-full">{topThree[0].name}</h3>
+                                <p className="font-mono text-xs text-black/70 mb-4 font-bold break-all">{topThree[0].uid}</p>
                                 <div className="bg-black text-neo-yellow font-mono font-bold px-3 py-2 text-2xl w-full text-center border-2 border-white">
                                     {topThree[0].stonks} 💎
                                 </div>
@@ -123,8 +123,8 @@ const LeaderboardPage = () => {
                             <div className="order-3 flex-1 bg-white border-4 border-black p-4 flex flex-col items-center shadow-neo relative h-56 justify-end">
                                 <div className="absolute top-0 -mt-6 bg-orange-400 border-4 border-black p-2 rounded-full w-12 h-12 flex items-center justify-center font-bold text-xl">3</div>
                                 <Medal size={48} className="text-orange-500 mb-2" />
-                                <h3 className="font-heading text-2xl text-center leading-none mb-1">{topThree[2].name}</h3>
-                                <p className="font-mono text-sm text-gray-500 mb-2">{topThree[2].uid}</p>
+                                <h3 className="font-heading text-xl text-center leading-tight mb-1 break-words w-full">{topThree[2].name}</h3>
+                                <p className="font-mono text-xs text-gray-500 mb-2 break-all">{topThree[2].uid}</p>
                                 <div className="bg-neo-black text-neo-green font-mono font-bold px-3 py-1 text-lg w-full text-center">
                                     {topThree[2].stonks}
                                 </div>
@@ -137,11 +137,11 @@ const LeaderboardPage = () => {
                 <div className="space-y-4">
                     {rest.map((player) => (
                         <div key={player.uid} className="bg-white border-4 border-black p-4 flex items-center justify-between shadow-[4px_4px_0px_#000] hover:translate-x-1 hover:translate-y-1 hover:shadow-none transition-all">
-                            <div className="flex items-center gap-4">
-                                <span className="font-heading text-3xl w-12 text-center text-gray-400">#{player.rank}</span>
-                                <div>
-                                    <h4 className="font-bold font-heading text-xl uppercase">{player.name}</h4>
-                                    <span className="font-mono text-xs text-gray-500">{player.uid}</span>
+                            <div className="flex items-center gap-4 flex-1 min-w-0">
+                                <span className="font-heading text-3xl w-12 text-center text-gray-400 flex-shrink-0">#{player.rank}</span>
+                                <div className="min-w-0 flex-1">
+                                    <h4 className="font-bold font-heading text-lg uppercase break-words">{player.name}</h4>
+                                    <span className="font-mono text-xs text-gray-500 break-all">{player.uid}</span>
                                 </div>
                             </div>
                             <div className="font-mono font-bold text-neo-pink text-xl">

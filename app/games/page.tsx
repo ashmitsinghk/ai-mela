@@ -54,7 +54,7 @@ export default function GamesPage() {
         {/* Header */}
         <div className="mb-8">
           <button
-            onClick={() => router.push('/portal')}
+            onClick={() => router.push('/')}
             className="flex items-center gap-2 text-gray-600 hover:text-black font-mono text-sm mb-4 transition-colors"
           >
             <ArrowLeft size={16} />

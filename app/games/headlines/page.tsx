@@ -284,13 +284,13 @@ export default function HeadlinesGame() {
             <div className="bg-white rounded-2xl shadow-2xl p-8 w-full max-w-md border-4 border-gray-800">
               <div className="text-center mb-6">
                 <Newspaper className="w-16 h-16 mx-auto mb-4 text-blue-600" />
-                <h1 className="text-4xl font-bold text-gray-800 mb-2">Headline Hunter</h1>
-                <p className="text-gray-600">Can you spot the real news from the fake?</p>
+                <h1 className="text-4xl font-heading font-bold text-gray-800 mb-2 uppercase">Headline Hunter</h1>
+                <p className="text-gray-600 font-mono">Can you spot the real news from the fake?</p>
               </div>
 
               <form onSubmit={checkPlayer} className="space-y-4">
                 <div>
-                  <label className="block text-sm font-bold text-gray-700 mb-2">Player UID</label>
+                  <label className="block text-sm font-bold text-gray-700 mb-2 font-mono">Player UID</label>
                   <input
                     type="text"
                     value={uid}
@@ -304,7 +304,7 @@ export default function HeadlinesGame() {
                 <button
                   type="submit"
                   disabled={loading}
-                  className="w-full py-3 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-lg transition-colors disabled:bg-gray-400 border-2 border-blue-800"
+                  className="w-full py-3 bg-blue-600 hover:bg-blue-700 text-white font-heading font-bold rounded-lg transition-colors disabled:bg-gray-400 border-2 border-blue-800 uppercase"
                 >
                   {loading ? (
                     <span className="flex items-center justify-center gap-2">
@@ -325,13 +325,13 @@ export default function HeadlinesGame() {
           <div className="flex items-center justify-center min-h-[calc(100vh-2rem)]">
             <div className="bg-white rounded-2xl shadow-2xl p-8 w-full max-w-md border-4 border-gray-800">
               <div className="text-center mb-6">
-                <h2 className="text-3xl font-bold text-gray-800 mb-2">Welcome, {playerData.name}!</h2>
-                <div className="text-2xl font-bold text-green-600 mb-4">💎 {playerData.stonks} Stonks</div>
+                <h2 className="text-3xl font-heading font-bold text-gray-800 mb-2 uppercase">Welcome, {playerData.name}!</h2>
+                <div className="text-2xl font-mono font-bold text-green-600 mb-4">💎 {playerData.stonks} Stonks</div>
               </div>
 
               <div className="bg-gray-50 rounded-lg p-6 mb-6 border-2 border-gray-300">
-                <h3 className="font-bold text-lg mb-3 text-center">Game Rules</h3>
-                <ul className="space-y-2 text-sm text-gray-700">
+                <h3 className="font-heading font-bold text-lg mb-3 text-center uppercase">Game Rules</h3>
+                <ul className="space-y-2 text-sm text-gray-700 font-mono">
                   <li>• Entry Fee: <span className="font-bold">{ENTRY_FEE} 💎</span></li>
                   <li>• 5 rounds of bizarre headlines</li>
                   <li>• Pick the REAL headline from 3 options</li>
@@ -343,14 +343,14 @@ export default function HeadlinesGame() {
               <div className="flex gap-3">
                 <button
                   onClick={resetGame}
-                  className="flex-1 py-3 bg-gray-300 hover:bg-gray-400 text-gray-800 font-bold rounded-lg transition-colors border-2 border-gray-500"
+                  className="flex-1 py-3 bg-gray-300 hover:bg-gray-400 text-gray-800 font-heading font-bold rounded-lg transition-colors border-2 border-gray-500 uppercase"
                 >
                   Cancel
                 </button>
                 <button
                   onClick={payAndStart}
                   disabled={loading || playerData.stonks < ENTRY_FEE}
-                  className="flex-1 py-3 bg-green-600 hover:bg-green-700 text-white font-bold rounded-lg transition-colors disabled:bg-gray-400 border-2 border-green-800"
+                  className="flex-1 py-3 bg-green-600 hover:bg-green-700 text-white font-heading font-bold rounded-lg transition-colors disabled:bg-gray-400 border-2 border-green-800 uppercase"
                 >
                   {loading ? (
                     <span className="flex items-center justify-center gap-2">
@@ -372,27 +372,27 @@ export default function HeadlinesGame() {
               {/* Header */}
               <div className="flex justify-between items-center mb-6">
                 <div>
-                  <h2 className="text-2xl font-bold text-gray-800">Round {currentRound}/{TOTAL_ROUNDS}</h2>
-                  <p className="text-sm text-gray-600">Score: {correctCount}/{currentRound - 1}</p>
+                  <h2 className="text-2xl font-heading font-bold text-gray-800 uppercase">Round {currentRound}/{TOTAL_ROUNDS}</h2>
+                  <p className="text-sm text-gray-600 font-mono">Score: {correctCount}/{currentRound - 1}</p>
                 </div>
                 <div className="text-center">
-                  <div className={`text-4xl font-bold mb-1 ${
+                  <div className={`text-4xl font-mono font-bold mb-1 ${
                     timeLeft <= 5 ? 'text-red-600 animate-pulse' : 'text-blue-600'
                   }`}>{timeLeft}s</div>
-                  <div className="text-xs text-gray-600">Time Left</div>
+                  <div className="text-xs text-gray-600 font-mono">Time Left</div>
                 </div>
                 <div className="text-right">
-                  <div className="text-lg font-bold text-green-600">💎 {playerData?.stonks}</div>
-                  <div className="text-xs text-gray-600">+{POINTS_PER_CORRECT} per correct</div>
+                  <div className="text-lg font-mono font-bold text-green-600">💎 {playerData?.stonks}</div>
+                  <div className="text-xs text-gray-600 font-mono">+{POINTS_PER_CORRECT} per correct</div>
                 </div>
               </div>
 
               {/* Question */}
               <div className="bg-blue-50 rounded-lg p-6 mb-6 border-2 border-blue-200">
-                <h3 className="text-xl font-bold text-center text-gray-800 mb-2">
+                <h3 className="text-xl font-heading font-bold text-center text-gray-800 mb-2 uppercase">
                   Which headline is REAL?
                 </h3>
-                <p className="text-sm text-center text-gray-600">
+                <p className="text-sm text-center text-gray-600 font-mono">
                   Two are fake, one actually happened!
                 </p>
               </div>
@@ -401,7 +401,7 @@ export default function HeadlinesGame() {
               {generatingHeadlines ? (
                 <div className="flex flex-col items-center justify-center py-12">
                   <Loader2 className="w-12 h-12 animate-spin text-blue-600 mb-4" />
-                  <p className="text-gray-600">Generating bizarre headlines...</p>
+                  <p className="text-gray-600 font-mono">Generating bizarre headlines...</p>
                 </div>
               ) : (
                 <div className="space-y-4">
@@ -434,11 +434,11 @@ export default function HeadlinesGame() {
                         className={`w-full p-6 ${bgColor} border-2 ${borderColor} rounded-lg text-left transition-all disabled:cursor-not-allowed hover:shadow-lg`}
                       >
                         <div className="flex items-start gap-3">
-                          <div className="flex-shrink-0 w-8 h-8 rounded-full bg-blue-200 flex items-center justify-center font-bold text-blue-800">
+                          <div className="flex-shrink-0 w-8 h-8 rounded-full bg-blue-200 flex items-center justify-center font-heading font-bold text-blue-800">
                             {String.fromCharCode(65 + index)}
                           </div>
                           <div className="flex-1">
-                            <p className="text-gray-800 font-medium leading-relaxed">{headline.text}</p>
+                            <p className="text-gray-800 font-mono font-medium leading-relaxed">{headline.text}</p>
                             {showResult && isCorrect && (
                               <span className="inline-block mt-2 text-xs font-bold text-green-700 bg-green-200 px-2 py-1 rounded">
                                 ✓ REAL HEADLINE
@@ -481,35 +481,35 @@ export default function HeadlinesGame() {
                 {correctCount >= 4 ? (
                   <>
                     <Trophy className="w-20 h-20 mx-auto mb-4 text-yellow-500" />
-                    <h2 className="text-4xl font-bold text-green-600 mb-2">Excellent!</h2>
+                    <h2 className="text-4xl font-heading font-bold text-green-600 mb-2 uppercase">Excellent!</h2>
                   </>
                 ) : correctCount >= 3 ? (
                   <>
                     <TrendingUp className="w-20 h-20 mx-auto mb-4 text-blue-500" />
-                    <h2 className="text-4xl font-bold text-blue-600 mb-2">Good Job!</h2>
+                    <h2 className="text-4xl font-heading font-bold text-blue-600 mb-2 uppercase">Good Job!</h2>
                   </>
                 ) : (
                   <>
                     <Newspaper className="w-20 h-20 mx-auto mb-4 text-gray-500" />
-                    <h2 className="text-4xl font-bold text-gray-600 mb-2">Nice Try!</h2>
+                    <h2 className="text-4xl font-heading font-bold text-gray-600 mb-2 uppercase">Nice Try!</h2>
                   </>
                 )}
-                <p className="text-xl text-gray-700">You got {correctCount}/{TOTAL_ROUNDS} correct</p>
+                <p className="text-xl text-gray-700 font-mono">You got {correctCount}/{TOTAL_ROUNDS} correct</p>
               </div>
 
               <div className="bg-gray-50 rounded-lg p-6 mb-6 border-2 border-gray-300">
                 <div className="text-center mb-4">
-                  <div className="text-3xl font-bold text-green-600 mb-2">
+                  <div className="text-3xl font-mono font-bold text-green-600 mb-2">
                     +{totalReward} 💎
                   </div>
-                  <div className="text-sm text-gray-600">New Balance: {playerData?.stonks} 💎</div>
+                  <div className="text-sm text-gray-600 font-mono">New Balance: {playerData?.stonks} 💎</div>
                 </div>
 
                 <div className="space-y-2">
                   {roundResults.map((result, index) => (
                     <div
                       key={index}
-                      className={`flex items-center gap-2 text-sm p-2 rounded ${
+                      className={`flex items-center gap-2 text-sm p-2 rounded font-mono ${
                         result.correct ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
                       }`}
                     >
@@ -525,7 +525,7 @@ export default function HeadlinesGame() {
 
               <button
                 onClick={resetGame}
-                className="w-full py-3 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-lg transition-colors border-2 border-blue-800"
+                className="w-full py-3 bg-blue-600 hover:bg-blue-700 text-white font-heading font-bold rounded-lg transition-colors border-2 border-blue-800 uppercase"
               >
                 Exit to Menu
               </button>
