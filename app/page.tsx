@@ -121,7 +121,7 @@ export default function PortalPage() {
             <QrCode size={32} className="group-hover:scale-110 transition-transform" />
             <span className="font-heading text-xl uppercase">SCAN QR</span>
           </button>
-          <button className="bg-neo-cyan text-black p-6 border-4 border-black shadow-neo flex flex-col items-center justify-center gap-2 hover:translate-y-1 hover:shadow-none transition-all group">
+          <button onClick={() => router.push('/games')} className="bg-neo-cyan text-black p-6 border-4 border-black shadow-neo flex flex-col items-center justify-center gap-2 hover:translate-y-1 hover:shadow-none transition-all group">
             <Gamepad2 size={32} className="group-hover:scale-110 transition-transform" />
             <span className="font-heading text-xl uppercase">GAMES</span>
           </button>

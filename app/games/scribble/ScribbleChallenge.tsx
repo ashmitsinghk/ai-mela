@@ -7,7 +7,7 @@ import CircularTimer from './components/CircularTimer';
 import { supabase } from '@/utils/supabase';
 import { Loader2, Palette } from 'lucide-react';
 
-type GameState = 'AUTH' | 'BET' | 'idle' | 'playing' | 'won' | 'lost';
+type GameState = 'AUTH' | 'BET' | 'wordSelection' | 'idle' | 'playing' | 'won' | 'lost';
 
 interface ChatMessage {
   id: number;
@@ -37,6 +37,8 @@ export default function ScribbleChallenge() {
   const [isDrawing, setIsDrawing] = useState(false);
   const [targetWord, setTargetWord] = useState('');
   const [timeLeft, setTimeLeft] = useState(30);
+  const [wordOptions, setWordOptions] = useState<string[]>([]);
+  const [selectionTimeLeft, setSelectionTimeLeft] = useState(10);
   const [gameState, setGameState] = useState<GameState>('AUTH');
   const [currentAiGuess, setCurrentAiGuess] = useState('');
   const [shieldActive, setShieldActive] = useState(false);
@@ -81,6 +83,7 @@ export default function ScribbleChallenge() {
 
   useEffect(() => {
     targetWordRef.current = targetWord;
+    console.log('🔄 targetWordRef updated to:', targetWord);
   }, [targetWord]);
 
   // Auth functions
@@ -134,7 +137,12 @@ export default function ScribbleChallenge() {
 
     setPlayerData({ ...playerData, stonks: playerData.stonks - 20 });
     setLoading(false);
-    setGameState('idle');
+    
+    // Generate 3 random word options
+    const options = [getRandomWord(), getRandomWord(), getRandomWord()];
+    setWordOptions(options);
+    setSelectionTimeLeft(10);
+    setGameState('wordSelection');
   };
 
   const resetGame = () => {
@@ -143,6 +151,8 @@ export default function ScribbleChallenge() {
     setPlayerData(null);
     setTargetWord('');
     setTimeLeft(30);
+    setSelectionTimeLeft(10);
+    setWordOptions([]);
     setCurrentAiGuess('');
     stopGame();
   };
@@ -514,7 +524,7 @@ export default function ScribbleChallenge() {
 
   // Stop polling when game ends
   useEffect(() => {
-    if (gameState === 'won' || gameState === 'lost' || gameState === 'idle') {
+    if (gameState === 'won' || gameState === 'lost') {
       console.log('🛑 Game ended, stopping polling. Interval ref:', pollingIntervalRef.current);
       if (pollingIntervalRef.current) {
         clearInterval(pollingIntervalRef.current);
@@ -528,6 +538,70 @@ export default function ScribbleChallenge() {
       }
     }
   }, [gameState]);
+
+  // Word selection timer
+  useEffect(() => {
+    if (gameState !== 'wordSelection') return;
+    
+    const timer = setInterval(() => {
+      setSelectionTimeLeft((prev) => {
+        if (prev <= 1) {
+          clearInterval(timer);
+          // Auto-select random word if time runs out
+          const randomIndex = Math.floor(Math.random() * wordOptions.length);
+          selectWord(wordOptions[randomIndex]);
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+    
+    return () => clearInterval(timer);
+  }, [gameState, wordOptions]);
+
+  // Handle word selection
+  const selectWord = (word: string) => {
+    console.log('🎯 Word selected:', word);
+    // Start game immediately with selected word
+    stopGame();
+    setTargetWord(word);
+    setTimeLeft(30);
+    setGameState('playing');
+    setCurrentAiGuess('');
+    setShieldActive(false);
+    setAnalyzing(false);
+    clearCanvas();
+
+    // Start timer
+    console.log('⏲️ Starting timer');
+    timerIntervalRef.current = setInterval(() => {
+      setTimeLeft((prev) => {
+        if (prev <= 1) {
+          console.log('⏰ Time up! Changing state to lost');
+          if (pollingIntervalRef.current) {
+            clearInterval(pollingIntervalRef.current);
+            pollingIntervalRef.current = null;
+          }
+          if (timerIntervalRef.current) {
+            clearInterval(timerIntervalRef.current);
+            timerIntervalRef.current = null;
+          }
+          setTimeout(() => {
+            setGameState('lost');
+            handleGameEnd('lost');
+          }, 0);
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+
+    // Start polling
+    setTimeout(() => {
+      console.log('🚀 Starting polling');
+      startPolling();
+    }, 100);
+  };
 
   // Cleanup on unmount
   useEffect(() => {
@@ -546,7 +620,10 @@ export default function ScribbleChallenge() {
     >
       {/* AUTH PHASE */}
       {gameState === 'AUTH' && (
-        <div className="h-screen overflow-auto bg-neo-cyan text-black font-mono p-4 md:p-8 flex items-center justify-center">
+        <div className="h-screen overflow-auto text-black font-mono p-4 md:p-8 flex items-center justify-center" style={{
+          background: '#2c5f99',
+          backgroundImage: `url("data:image/svg+xml,%3Csvg width='60' height='60' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M10 10h5v5h-5zm20 0h5v5h-5zm20 0h5v5h-5zM10 30h5v5h-5zm20 0h5v5h-5zm20 0h5v5h-5z' fill='%23234a7a' fill-opacity='0.4'/%3E%3C/svg%3E")`
+        }}>
           <div className="max-w-md w-full bg-white shadow-[16px_16px_0px_#000] p-8">
             <div className="text-center mb-8">
               <div className="inline-flex items-center justify-center w-20 h-20 bg-neo-pink border-4 border-black mb-4">
@@ -652,8 +729,66 @@ export default function ScribbleChallenge() {
         </div>
       )}
 
+      {/* WORD SELECTION PHASE */}
+      {gameState === 'wordSelection' && (
+        <div className="h-screen overflow-auto py-6 px-4" style={{
+          background: '#2c5f99',
+          backgroundImage: `url("data:image/svg+xml,%3Csvg width='60' height='60' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M10 10h5v5h-5zm20 0h5v5h-5zm20 0h5v5h-5zM10 30h5v5h-5zm20 0h5v5h-5zm20 0h5v5h-5z' fill='%23234a7a' fill-opacity='0.4'/%3E%3C/svg%3E")`
+        }}>
+          <div className="max-w-4xl mx-auto flex flex-col items-center justify-center min-h-[calc(100vh-3rem)]">
+            <div className="bg-white rounded-xl shadow-2xl border-4 border-gray-800 p-8 w-full">
+              <div className="text-center mb-8">
+                <h2 className="text-4xl font-bold text-gray-800 mb-4">Choose Your Word</h2>
+                <div className="flex items-center justify-center gap-3 mb-2">
+                  <div className={`text-6xl font-bold ${
+                    selectionTimeLeft <= 5 ? 'text-red-600 animate-pulse' : 'text-blue-600'
+                  }`}>
+                    {selectionTimeLeft}
+                  </div>
+                  <span className="text-2xl text-gray-600">seconds</span>
+                </div>
+                <p className="text-gray-600 text-lg">
+                  {selectionTimeLeft <= 5 ? '⏰ Hurry up!' : 'Pick a word to draw'}
+                </p>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                {wordOptions.map((word, index) => (
+                  <button
+                    key={index}
+                    onClick={() => selectWord(word)}
+                    className="group relative bg-gradient-to-br from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white p-8 rounded-xl border-4 border-gray-800 shadow-lg hover:shadow-2xl hover:scale-105 transition-all duration-200"
+                  >
+                    <div className="text-4xl font-bold uppercase tracking-wide mb-2">
+                      {word}
+                    </div>
+                    <div className="text-sm opacity-75">
+                      {word.length} letters
+                    </div>
+                    <div className="absolute inset-0 bg-white opacity-0 group-hover:opacity-10 rounded-xl transition-opacity" />
+                  </button>
+                ))}
+              </div>
+
+              <div className="mt-8 text-center">
+                <p className="text-sm text-gray-600">
+                  💡 A random word will be selected if you don't choose in time
+                </p>
+              </div>
+            </div>
+
+            <button
+              onClick={resetGame}
+              className="mt-6 text-white underline hover:text-neo-pink font-bold text-lg"
+            >
+              Cancel Game
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* GAME PHASE */}
-      {(gameState === 'idle' || gameState === 'playing' || gameState === 'won' || gameState === 'lost') && (
+      {(gameState === 'playing' || gameState === 'won' || gameState === 'lost') && (
         <div className="min-h-screen py-6 px-4" style={{
           background: '#2c5f99',
           backgroundImage: `url("data:image/svg+xml,%3Csvg width='60' height='60' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M10 10h5v5h-5zm20 0h5v5h-5zm20 0h5v5h-5zM10 30h5v5h-5zm20 0h5v5h-5zm20 0h5v5h-5z' fill='%23234a7a' fill-opacity='0.4'/%3E%3C/svg%3E")`
@@ -685,17 +820,55 @@ export default function ScribbleChallenge() {
           )}
         </div>
 
-        {/* Word Display */}
-        {gameState === 'playing' && (
-          <div className="text-center mb-4">
-            <div className="text-sm text-white font-semibold mb-1">DRAW THIS</div>
-            <div className="flex items-center justify-center gap-4">
-              <CircularTimer timeLeft={timeLeft} />
-              <div className="inline-block bg-white px-8 py-3 rounded-lg border-4 border-gray-800 shadow-lg">
-                <div className="text-4xl font-bold text-gray-800">
-                  {targetWord.toUpperCase()}
+        {/* Persistent Bar - Visible in playing, won, lost states */}
+        {(gameState === 'playing' || gameState === 'won' || gameState === 'lost') && (
+          <div className="shadow-lg p-3 mb-4" style={{
+            background: 'linear-gradient(180deg, #4a90e2 0%, #357abd 100%)',
+            borderTop: '3px solid #2c5f99',
+            borderBottom: '3px solid #1a4d8f'
+          }}>
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-4">
+                <div className="flex items-center gap-2 bg-white rounded-full px-3 py-1 border-2 border-gray-800">
+                  <span className="text-xl">🕐</span>
+                  <span className="text-sm font-bold text-gray-800">Round 1 of 1</span>
                 </div>
-                <div className="text-xs text-gray-600 mt-1">{targetWord.length} letters</div>
+              </div>
+              
+              <div className="flex flex-col items-center gap-1 flex-1">
+                {gameState === 'playing' && (
+                  <>
+                    <div className="text-xs font-bold text-white tracking-wider">GUESS THIS</div>
+                    <div className="flex items-center gap-2">
+                      <div className="text-2xl font-bold text-white tracking-widest" style={{ fontFamily: 'monospace' }}>
+                        {targetWord.split('').map((char, i) => (
+                          <span key={i} className="inline-block mx-0.5">
+                            <span className="border-b-4 border-white pb-1">{char.toUpperCase()}</span>
+                          </span>
+                        ))}
+                      </div>
+                      <span className="text-sm font-bold text-white bg-black bg-opacity-30 rounded px-2 py-0.5">
+                        {targetWord.length}
+                      </span>
+                    </div>
+                  </>
+                )}
+                {gameState === 'won' && (
+                  <div className="text-xl font-bold text-white">✓ AI guessed: {targetWord.toUpperCase()}</div>
+                )}
+                {gameState === 'lost' && (
+                  <div className="text-xl font-bold text-white">✗ Time's up! Word was: {targetWord.toUpperCase()}</div>
+                )}
+              </div>
+
+              <div className="flex items-center gap-2">
+                {gameState === 'playing' && (
+                  <div className={`text-3xl font-bold px-4 py-1 rounded-lg ${
+                    timeLeft <= 10 ? 'bg-red-500 text-white animate-pulse' : 'bg-white text-gray-800'
+                  } border-2 border-gray-800`}>
+                    {timeLeft}s
+                  </div>
+                )}
               </div>
             </div>
           </div>
@@ -769,15 +942,6 @@ export default function ScribbleChallenge() {
                 {/* Overlay for non-playing states */}
                 {gameState !== 'playing' && (
                   <div className="absolute inset-0 bg-white bg-opacity-98 flex items-center justify-center">
-                    {gameState === 'idle' && (
-                      <button
-                        onClick={startGame}
-                        className="px-12 py-5 bg-green-500 hover:bg-green-600 text-white font-bold rounded-xl text-2xl transition-colors shadow-lg border-4 border-green-700"
-                      >
-                        🎮 Start Game
-                      </button>
-                    )}
-
                     {gameState === 'won' && (
                       <div className="text-center p-8">
                         <h2 className="text-5xl font-bold text-green-600 mb-4">🎉 You Won!</h2>
@@ -888,11 +1052,7 @@ export default function ScribbleChallenge() {
                   </div>
                 )}
 
-                {chatMessages.length === 0 && gameState === 'idle' && (
-                  <div className="text-center text-gray-400 text-sm mt-8">
-                    Start the game to begin chatting!
-                  </div>
-                )}
+                
                 
                 {chatMessages.map((msg) => (
                   <div
