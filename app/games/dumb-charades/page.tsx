@@ -24,6 +24,7 @@ export default function DumbCharadesGame() {
   });
 
   const [isPressed, setIsPressed] = useState<string | null>(null);
+  const [usedEntryIds, setUsedEntryIds] = useState<(string | number)[]>([]);
 
   // Auth: Check player
   const checkPlayer = async (e: React.FormEvent) => {
@@ -84,6 +85,7 @@ export default function DumbCharadesGame() {
     setGamePhase('AUTH');
     setUid('');
     setPlayerData(null);
+    setUsedEntryIds([]);
     setGameState({
       round: 0,
       stonks: 0,
@@ -105,36 +107,94 @@ export default function DumbCharadesGame() {
   };
 
   // Generate round data
-  const generateRound = () => {
+  const generateRound = async (): Promise<RoundData> => {
     const data = gameData as GameEntry[];
     
-    // Pick a random correct entry
-    const correctEntry = data[Math.floor(Math.random() * data.length)];
+    // Filter out already used entries
+    const availableEntries = data.filter(entry => !usedEntryIds.includes(entry.id));
     
-    // Pick 2 random decoys (excluding the correct one)
-    const remainingEntries = data.filter(entry => entry.id !== correctEntry.id);
-    const decoys = shuffleArray(remainingEntries).slice(0, 2);
+    // If we've used all entries, reset
+    if (availableEntries.length === 0) {
+      setUsedEntryIds([]);
+      return generateRound();
+    }
     
-    // Create options array with correct answer and decoys
-    const options = shuffleArray([
-      correctEntry.prompt,
-      decoys[0].prompt,
-      decoys[1].prompt
-    ]);
+    // Pick a random correct entry from available ones
+    const correctEntry = availableEntries[Math.floor(Math.random() * availableEntries.length)];
     
-    return {
-      correctEntry,
-      options,
-      correctAnswer: correctEntry.prompt
-    };
+    // Mark this entry as used
+    setUsedEntryIds(prev => [...prev, correctEntry.id]);
+    
+    try {
+      // Generate 3 options (1 correct + 2 decoys) using Groq
+      const response = await fetch('/api/groq', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          messages: [{
+            sender: 'system',
+            text: `Generate exactly 3 image descriptions for a charades game. The first one should accurately describe: "${correctEntry.prompt}". The other 2 should be similar but clearly wrong alternatives that could plausibly be confused with the first. Return ONLY a JSON array of 3 strings, nothing else. Example format: ["correct description", "wrong but similar option 1", "wrong but similar option 2"]`
+          }]
+        }),
+      });
+
+      if (!response.ok) throw new Error('Failed to generate options from API');
+
+      const result = await response.json();
+      let options: string[];
+
+      if (result.reply) {
+        try {
+          options = JSON.parse(result.reply);
+          if (!Array.isArray(options) || options.length < 3) {
+            throw new Error("Parsed data is not an array of at least 3 strings.");
+          }
+          // Ensure we only take 3 options, even if the LLM provides more
+          options = options.slice(0, 3);
+        } catch (e) {
+          console.error("Failed to parse Groq response, using fallback.", e);
+          throw new Error("Parsing failed"); // Throw to fall into the outer catch block
+        }
+      } else {
+        throw new Error("API response did not contain a 'reply' field.");
+      }
+
+      const correctAnswer = options[0]; // Per the prompt, the first option is the correct one
+      const shuffledOptions = shuffleArray(options);
+
+      return {
+        correctEntry,
+        options: shuffledOptions,
+        correctAnswer,
+      };
+    } catch (error) {
+      console.error('Error generating round via API, using local fallback:', error);
+      
+      // Fallback to random prompts from JSON
+      const remainingEntries = data.filter(entry => entry.id !== correctEntry.id);
+      const decoys = shuffleArray(remainingEntries).slice(0, 2);
+      
+      const options = [
+        correctEntry.prompt,
+        decoys[0].prompt,
+        decoys[1].prompt
+      ];
+      
+      return {
+        correctEntry,
+        options: shuffleArray(options),
+        correctAnswer: correctEntry.prompt
+      };
+    }
   };
 
   // Start new game
-  const startNewGame = () => {
+  const startNewGame = async () => {
+    const roundData = await generateRound();
     setGameState({
       round: 1,
       stonks: 0,
-      currentRoundData: generateRound(),
+      currentRoundData: roundData,
       gameOver: false,
       selectedAnswer: null,
       showFeedback: false,
@@ -160,14 +220,15 @@ export default function DumbCharadesGame() {
       }));
 
       // Move to next round after 1.5 seconds
-      setTimeout(() => {
+      setTimeout(async () => {
         if (gameState.round >= 4) {
           endGame();
         } else {
+          const nextRoundData = await generateRound();
           setGameState(prev => ({
             ...prev,
             round: prev.round + 1,
-            currentRoundData: generateRound(),
+            currentRoundData: nextRoundData,
             selectedAnswer: null,
             showFeedback: false,
           }));
@@ -207,6 +268,7 @@ export default function DumbCharadesGame() {
   };
 
   const playAgain = () => {
+    setUsedEntryIds([]);
     setGamePhase('BET');
     setGameState({
       round: 0,
@@ -218,7 +280,7 @@ export default function DumbCharadesGame() {
     });
   };
 
-  // Initialize game on mount
+  // Initialize game on mount when phase becomes 'PLAYING'
   useEffect(() => {
     if (gamePhase === 'PLAYING' && gameState.round === 0) {
       startNewGame();
@@ -323,7 +385,7 @@ export default function DumbCharadesGame() {
             <div className="space-y-3">
               <button
                 onClick={payAndStart}
-                disabled={authLoading || (playerData && playerData.stonks < 20)}
+                disabled={authLoading || (playerData?.stonks ?? 0) < 20}
                 className="w-full bg-[#22C55E] text-white text-xl font-black uppercase py-3 px-6 border-4 border-black shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] hover:shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] hover:translate-x-[2px] hover:translate-y-[2px] transition-all active:shadow-none active:translate-x-[4px] active:translate-y-[4px] disabled:opacity-50"
               >
                 {authLoading ? 'PROCESSING...' : 'PAY & PLAY'}

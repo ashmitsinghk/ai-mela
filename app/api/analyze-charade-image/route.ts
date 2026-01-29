@@ -26,7 +26,7 @@ export async function POST(req: NextRequest) {
           content: [
             {
               type: "text",
-              content: "Describe this image in one concise sentence. Focus on the main subject, action, and key absurd or unusual details. Keep it under 20 words and make it sound like a funny charades prompt."
+              text: "Describe this image in one concise sentence. Focus on the main subject, action, and key absurd or unusual details. Keep it under 20 words and make it sound like a funny charades prompt."
             },
             {
               type: "image_url",
