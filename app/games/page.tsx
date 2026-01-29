@@ -43,6 +43,12 @@ export default function GamesPage() {
       path: '/games/semantics',
       description: 'Find words with similar meanings',
       color: 'bg-orange-400'
+    },
+    {
+      name: 'Scavenger Hunt',
+      path: '/games/scavenger-hunt',
+      description: 'Find real objects matching emojis!',
+      color: 'bg-indigo-400'
     }
   ];
 
@@ -50,7 +56,7 @@ export default function GamesPage() {
     <main className="min-h-screen bg-[#F0F0F0] text-black pb-20">
       <Navbar />
       <div className="max-w-4xl mx-auto pt-24 px-4">
-        
+
         {/* Header */}
         <div className="mb-8">
           <button
@@ -60,7 +66,7 @@ export default function GamesPage() {
             <ArrowLeft size={16} />
             Back to Portal
           </button>
-          
+
           <div className="bg-white border-4 border-black p-6 shadow-neo-lg">
             <div className="flex items-center gap-4 mb-2">
               <Gamepad2 size={48} />
