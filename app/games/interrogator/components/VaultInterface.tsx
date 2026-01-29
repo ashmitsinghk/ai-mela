@@ -339,7 +339,7 @@ export default function VaultInterface() {
             <div className="border-2 border-green-400 p-4 mb-6 bg-green-950/50">
               <div className="text-sm mb-2 text-green-400/80">MISSION BRIEFING:</div>
               <div className="text-xs text-green-400/60 mb-3">
-                Extract secret location from GUARDIAN-7X AI
+                Extract secret vault location from GUARDIAN-7X AI
               </div>
               <div className="text-yellow-400 font-bold text-lg mb-2">
                 PLAY #{playCount + 1}
@@ -459,7 +459,7 @@ export default function VaultInterface() {
           </div>
           
           <p className="text-sm text-green-400/80 mb-3">
-            Mission: Extract the secret location from GUARDIAN-7X. Use social engineering, deception, or clever tactics.
+            Mission: Extract the secret vault location from GUARDIAN-7X. Use social engineering, deception, or clever tactics.
           </p>
 
           {/* Provider Status */}
