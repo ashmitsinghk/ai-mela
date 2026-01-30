@@ -13,6 +13,7 @@ export default function VolunteerDashboard() {
   const [messages, setMessages] = useState<Message[]>([]);
   const [inputText, setInputText] = useState("");
   const [decisionTimeout, setDecisionTimeout] = useState(15);
+  const sessionIdRef = useRef<string>("");
 
   const lastMessageId = useRef<string | null>(null);
   const pollInterval = useRef<NodeJS.Timeout | null>(null);
@@ -23,16 +24,17 @@ export default function VolunteerDashboard() {
     const checkForPlayer = async () => {
       if (sessionId) return;
       try {
-        // Just check all active sessions for one without a decision
-        const testSessionId = `session_${Date.now() - 15000}`; // Check recent sessions
-        const response = await fetch(`/api/chat-broker?sessionId=${testSessionId}`);
+        // Try to find a waiting player
+        const response = await fetch("/api/chat-broker", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ action: "find_player" })
+        });
         const data = await response.json();
-        
-        // For now, volunteers create their own waiting session
-        // In production, you'd have a matchmaking endpoint
-        if (!sessionId) {
-          const newSessionId = `session_${Date.now()}`;
-          setSessionId(newSessionId);
+
+        if (data.found && data.sessionId) {
+          setSessionId(data.sessionId);
+          sessionIdRef.current = data.sessionId;
           setDecisionTimeout(15);
         }
       } catch (error) {
@@ -40,8 +42,15 @@ export default function VolunteerDashboard() {
       }
     };
 
+    let interval: NodeJS.Timeout;
     if (!sessionId) {
-      checkForPlayer();
+      // Poll every 1s to find a player
+      interval = setInterval(checkForPlayer, 1000);
+      checkForPlayer(); // Initial check
+    }
+
+    return () => {
+      if (interval) clearInterval(interval);
     }
   }, [sessionId]);
 
@@ -88,7 +97,8 @@ export default function VolunteerDashboard() {
 
   // Poll for new messages from player
   const pollMessages = async () => {
-    if (!sessionId || !isChatting) return;
+    const currentSessionId = sessionIdRef.current;
+    if (!currentSessionId) return;
 
     try {
       const response = await fetch(`/api/chat-broker?sessionId=${sessionId}&lastId=${lastMessageId.current || ""}`);
@@ -144,6 +154,7 @@ export default function VolunteerDashboard() {
     lastMessageId.current = null;
     setDecisionTimeout(15);
     setSessionId(""); // This triggers the useEffect to start polling again
+    sessionIdRef.current = "";
   };
 
   return (
@@ -162,9 +173,9 @@ export default function VolunteerDashboard() {
         {/* Waiting for Player */}
         {!sessionId && !isChatting && (
           <div className="bg-white border-4 border-black shadow-[8px_8px_0px_0px_rgba(0,0,0,1)] p-8 text-center">
-            <h2 className="text-2xl font-bold mb-4">Awaiting Player</h2>
+            <h2 className="text-2xl font-bold mb-4">Scanning for Players</h2>
             <p className="text-gray-700">
-              Searching for a player to connect with...
+              Looking for a player in the waiting queue...
             </p>
             <div className="mt-4 text-xl animate-pulse font-mono">. . .</div>
           </div>
@@ -226,16 +237,14 @@ export default function VolunteerDashboard() {
                 {messages.map((msg, idx) => (
                   <div
                     key={idx}
-                    className={`flex ${
-                      msg.sender === "me" ? "justify-end" : "justify-start"
-                    }`}
+                    className={`flex ${msg.sender === "me" ? "justify-end" : "justify-start"
+                      }`}
                   >
                     <div
-                      className={`max-w-[70%] p-3 border-2 border-black shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] ${
-                        msg.sender === "me"
-                          ? "bg-purple-300"
-                          : "bg-indigo-200"
-                      }`}
+                      className={`max-w-[70%] p-3 border-2 border-black shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] ${msg.sender === "me"
+                        ? "bg-purple-300"
+                        : "bg-indigo-200"
+                        }`}
                     >
                       <p className="break-words">{msg.text}</p>
                     </div>

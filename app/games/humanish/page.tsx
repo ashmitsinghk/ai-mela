@@ -26,7 +26,10 @@ export default function HumanishGame() {
   const pollInterval = useRef<NodeJS.Timeout | null>(null);
   const decisionCheckInterval = useRef<NodeJS.Timeout | null>(null);
 
-  // Start game - create session and check for volunteer in background
+  // Ref to track session ID without stale closure issues
+  const sessionIdRef = useRef<string>("");
+
+  // Start game - register in waiting queue
   const startGame = async () => {
     // Clear any existing intervals before starting
     if (decisionCheckInterval.current) {
@@ -36,8 +39,10 @@ export default function HumanishGame() {
       clearInterval(pollInterval.current);
     }
 
-    const newSessionId = `session_${Date.now()}`;
+    const newSessionId = `session_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
     setSessionId(newSessionId);
+    sessionIdRef.current = newSessionId;
+
     setGameStarted(true);
     setGameEnded(false);
     setTimeLeft(90);
@@ -48,33 +53,46 @@ export default function HumanishGame() {
     setBackgroundTimeout(15);
     lastMessageId.current = null;
 
-    // Start checking for volunteer decision in background
+    // Register in waiting queue
     try {
-      decisionCheckInterval.current = setInterval(checkVolunteerDecision, 500);
+      await fetch("/api/chat-broker", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ sessionId: newSessionId, action: "register_waiting" }),
+      });
+
+      // Start checking if a volunteer has joined
+      decisionCheckInterval.current = setInterval(checkVolunteerStatus, 500);
+
     } catch (error) {
-      console.error("Failed to join:", error);
+      console.error("Failed to register:", error);
     }
   };
 
-  // Check volunteer decision
-  const checkVolunteerDecision = async () => {
-    if (!sessionId) return;
+  // Check if volunteer has joined or made a decision
+  const checkVolunteerStatus = async () => {
+    const currentSessionId = sessionIdRef.current;
+    if (!currentSessionId) return;
 
     try {
-      const response = await fetch(`/api/chat-broker?sessionId=${sessionId}&lastId=${lastMessageId.current || ""}`);
+      const response = await fetch(`/api/chat-broker?sessionId=${currentSessionId}&lastId=${lastMessageId.current || ""}`);
       const data = await response.json();
 
+      // If volunteer decided "chat", start chatting
       if (data.decision === "chat") {
         setPartnerType("human");
         if (decisionCheckInterval.current) {
           clearInterval(decisionCheckInterval.current);
         }
         pollInterval.current = setInterval(pollMessages, 500);
-      } else if (data.decision === "ai") {
+      }
+      // If volunteer decided "ai", switch to AI
+      else if (data.decision === "ai") {
         connectToAI();
       }
+
     } catch (error) {
-      console.error("Decision check error:", error);
+      console.error("Status check error:", error);
     }
   };
 
@@ -136,10 +154,11 @@ export default function HumanishGame() {
 
   // Poll for new messages from volunteer
   const pollMessages = async () => {
-    if (!sessionId || !gameStarted || gameEnded) return;
+    const currentSessionId = sessionIdRef.current;
+    if (!currentSessionId) return;
 
     try {
-      const response = await fetch(`/api/chat-broker?sessionId=${sessionId}&lastId=${lastMessageId.current || ""}`);
+      const response = await fetch(`/api/chat-broker?sessionId=${currentSessionId}&lastId=${lastMessageId.current || ""}`);
       const data = await response.json();
 
       if (data.messages && data.messages.length > 0) {
@@ -170,7 +189,7 @@ export default function HumanishGame() {
       });
 
       const data = await response.json();
-      
+
       if (data.reply) {
         setMessages((prev) => [
           ...prev,
@@ -186,14 +205,15 @@ export default function HumanishGame() {
 
   // Send message to volunteer
   const sendVolunteerMessage = async (text: string) => {
-    if (!sessionId) return;
-    
+    const currentSessionId = sessionIdRef.current;
+    if (!currentSessionId) return;
+
     try {
       await fetch("/api/chat-broker", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          sessionId,
+          sessionId: currentSessionId,
           message: text,
           sender: "player",
         }),
@@ -250,7 +270,7 @@ export default function HumanishGame() {
               human volunteer or an AI pretending to be human. Your job? Figure
               out which one!
             </p>
-            
+
             <button
               onClick={startGame}
               className="bg-pink-400 hover:bg-pink-500 text-black font-bold py-3 px-8 border-4 border-black shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] hover:shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] hover:translate-x-[2px] hover:translate-y-[2px] transition-all"
@@ -265,9 +285,8 @@ export default function HumanishGame() {
               <div className="flex justify-between items-center">
                 <span className="text-xl font-bold">TIME LEFT:</span>
                 <span
-                  className={`text-3xl font-bold ${
-                    timeLeft <= 10 ? "text-red-600 animate-pulse" : ""
-                  }`}
+                  className={`text-3xl font-bold ${timeLeft <= 10 ? "text-red-600 animate-pulse" : ""
+                    }`}
                 >
                   {timeLeft}s
                 </span>
@@ -285,16 +304,14 @@ export default function HumanishGame() {
                 {messages.map((msg, idx) => (
                   <div
                     key={idx}
-                    className={`flex ${
-                      msg.sender === "me" ? "justify-end" : "justify-start"
-                    }`}
+                    className={`flex ${msg.sender === "me" ? "justify-end" : "justify-start"
+                      }`}
                   >
                     <div
-                      className={`max-w-[70%] p-3 border-2 border-black shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] ${
-                        msg.sender === "me"
-                          ? "bg-pink-300"
-                          : "bg-cyan-200"
-                      }`}
+                      className={`max-w-[70%] p-3 border-2 border-black shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] ${msg.sender === "me"
+                        ? "bg-pink-300"
+                        : "bg-cyan-200"
+                        }`}
                     >
                       <p className="break-words">{msg.text}</p>
                     </div>
@@ -332,49 +349,48 @@ export default function HumanishGame() {
 
             {/* Guess Section */}
             {gameEnded && !showResult && (
-          <div className="bg-white border-4 border-black shadow-[8px_8px_0px_0px_rgba(0,0,0,1)] p-6 text-center">
-            <h2 className="text-2xl font-bold mb-4">TIME'S UP!</h2>
-            <p className="mb-6 text-gray-700">
-              Was your chat partner a human or an AI?
-            </p>
-            <div className="flex gap-4 justify-center">
-              <button
-                onClick={() => submitGuess("human")}
-                className="bg-pink-400 hover:bg-pink-500 text-black font-bold py-4 px-8 border-4 border-black shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] hover:shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] hover:translate-x-[2px] hover:translate-y-[2px] transition-all"
-              >
-                👤 HUMAN
-              </button>
-              <button
-                onClick={() => submitGuess("ai")}
-                className="bg-cyan-400 hover:bg-cyan-500 text-black font-bold py-4 px-8 border-4 border-black shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] hover:shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] hover:translate-x-[2px] hover:translate-y-[2px] transition-all"
-              >
-                🤖 AI
-              </button>
-            </div>
-          </div>
-        )}
+              <div className="bg-white border-4 border-black shadow-[8px_8px_0px_0px_rgba(0,0,0,1)] p-6 text-center">
+                <h2 className="text-2xl font-bold mb-4">TIME'S UP!</h2>
+                <p className="mb-6 text-gray-700">
+                  Was your chat partner a human or an AI?
+                </p>
+                <div className="flex gap-4 justify-center">
+                  <button
+                    onClick={() => submitGuess("human")}
+                    className="bg-pink-400 hover:bg-pink-500 text-black font-bold py-4 px-8 border-4 border-black shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] hover:shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] hover:translate-x-[2px] hover:translate-y-[2px] transition-all"
+                  >
+                    👤 HUMAN
+                  </button>
+                  <button
+                    onClick={() => submitGuess("ai")}
+                    className="bg-cyan-400 hover:bg-cyan-500 text-black font-bold py-4 px-8 border-4 border-black shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] hover:shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] hover:translate-x-[2px] hover:translate-y-[2px] transition-all"
+                  >
+                    🤖 AI
+                  </button>
+                </div>
+              </div>
+            )}
 
-        {showResult && (
-          <div
-            className={`border-4 border-black shadow-[8px_8px_0px_0px_rgba(0,0,0,1)] p-6 text-center ${
-              isCorrect ? "bg-green-300" : "bg-red-300"
-            }`}
-          >
-            <h2 className="text-3xl font-bold mb-2">
-              {isCorrect ? "🎉 CORRECT!" : "❌ WRONG!"}
-            </h2>
-            <p className="text-xl mb-4">
-              It was {partnerType === "ai" ? "an AI" : "a human"}!
-            </p>
-            <button
-              onClick={startGame}
-              className="bg-white hover:bg-gray-100 text-black font-bold py-3 px-8 border-4 border-black shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] hover:shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] hover:translate-x-[2px] hover:translate-y-[2px] transition-all"
-            >
-              PLAY AGAIN
-            </button>
-          </div>
-        )}
-        </>
+            {showResult && (
+              <div
+                className={`border-4 border-black shadow-[8px_8px_0px_0px_rgba(0,0,0,1)] p-6 text-center ${isCorrect ? "bg-green-300" : "bg-red-300"
+                  }`}
+              >
+                <h2 className="text-3xl font-bold mb-2">
+                  {isCorrect ? "🎉 CORRECT!" : "❌ WRONG!"}
+                </h2>
+                <p className="text-xl mb-4">
+                  It was {partnerType === "ai" ? "an AI" : "a human"}!
+                </p>
+                <button
+                  onClick={startGame}
+                  className="bg-white hover:bg-gray-100 text-black font-bold py-3 px-8 border-4 border-black shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] hover:shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] hover:translate-x-[2px] hover:translate-y-[2px] transition-all"
+                >
+                  PLAY AGAIN
+                </button>
+              </div>
+            )}
+          </>
         )}
       </div>
     </div>
