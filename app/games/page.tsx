@@ -15,7 +15,7 @@ export default function GamesPage() {
       color: 'bg-neo-pink'
     },
     {
-      name: 'Humanish',
+      name: 'Human Or Not?',
       path: '/games/humanish',
       description: 'Chat with others - but who is human?',
       color: 'bg-neo-green'
@@ -61,6 +61,12 @@ export default function GamesPage() {
       path: '/games/dumb-charades',
       description: 'Guess the prompt',
       color: 'bg-emerald-400'
+    },
+    {
+      name: 'Deepfake Detective',
+      path: '/games/deepfake-detective',
+      description: 'Guess the fake image',
+      color: 'bg-teal-400'
     }
   ];
 
