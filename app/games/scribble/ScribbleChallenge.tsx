@@ -5,7 +5,7 @@ import { analyzeDrawing } from './scribble';
 import { getRandomWord } from './words-list';
 import CircularTimer from './components/CircularTimer';
 import { supabase } from '@/utils/supabase';
-import { Loader2, Palette } from 'lucide-react';
+import { Loader2, Palette, Send, Eraser, Trash2, User, Play, Clock, Trophy } from 'lucide-react';
 
 type GameState = 'AUTH' | 'BET' | 'wordSelection' | 'idle' | 'playing' | 'won' | 'lost';
 
@@ -46,18 +46,18 @@ export default function ScribbleChallenge() {
   const pollingIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const timerIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const lastAnalysisRef = useRef<number>(0);
-  
+
   // Auth state
   const [uid, setUid] = useState('');
-  const [playerData, setPlayerData] = useState<{ name: string | null; stonks: number } | null>(null);
+  const [playerData, setPlayerData] = useState<{ name: string | null; stonks: number; avatar?: string } | null>(null);
   const [loading, setLoading] = useState(false);
-  
+
   // Refs to avoid stale closure issues in intervals
   const gameStateRef = useRef<GameState>(gameState);
   const shieldActiveRef = useRef(shieldActive);
   const analyzingRef = useRef(analyzing);
   const targetWordRef = useRef(targetWord);
-  
+
   // New UI state
   const [selectedColor, setSelectedColor] = useState('#000000');
   const [brushSize, setBrushSize] = useState(4);
@@ -120,7 +120,7 @@ export default function ScribbleChallenge() {
       .from('players')
       .update({ stonks: playerData.stonks - 20 })
       .eq('uid', uid);
-    
+
     if (updateError) {
       alert('Transaction Failed');
       setLoading(false);
@@ -137,7 +137,7 @@ export default function ScribbleChallenge() {
 
     setPlayerData({ ...playerData, stonks: playerData.stonks - 20 });
     setLoading(false);
-    
+
     // Generate 3 random word options
     const options = [getRandomWord(), getRandomWord(), getRandomWord()];
     setWordOptions(options);
@@ -358,18 +358,18 @@ export default function ScribbleChallenge() {
     const currentShieldActive = shieldActiveRef.current;
     const currentAnalyzing = analyzingRef.current;
     const currentTargetWord = targetWordRef.current;
-    
-    console.log('🔍 analyzeCurrentDrawing called', { 
-      gameState: currentGameState, 
-      shieldActive: currentShieldActive, 
-      analyzing: currentAnalyzing 
+
+    console.log('🔍 analyzeCurrentDrawing called', {
+      gameState: currentGameState,
+      shieldActive: currentShieldActive,
+      analyzing: currentAnalyzing
     });
-    
+
     if (currentGameState !== 'playing' || currentShieldActive || currentAnalyzing) {
-      console.log('⏭️ Skipping analysis:', { 
-        gameState: currentGameState, 
-        shieldActive: currentShieldActive, 
-        analyzing: currentAnalyzing 
+      console.log('⏭️ Skipping analysis:', {
+        gameState: currentGameState,
+        shieldActive: currentShieldActive,
+        analyzing: currentAnalyzing
       });
       return;
     }
@@ -384,9 +384,9 @@ export default function ScribbleChallenge() {
     console.log('📸 Exporting canvas...');
     setAnalyzing(true);
     const imageData = await exportToBlob();
-    
+
     console.log('📊 Image data:', imageData ? `${imageData.length} chars` : 'EMPTY');
-    
+
     if (!imageData) {
       console.error('❌ No image data');
       setAnalyzing(false);
@@ -418,7 +418,7 @@ export default function ScribbleChallenge() {
       // Check win condition
       const normalizedGuess = result.guess.toLowerCase().trim().replace(/\s+/g, '');
       const normalizedTarget = currentTargetWord.toLowerCase().trim().replace(/\s+/g, '');
-      
+
       if (normalizedGuess === normalizedTarget) {
         setGameState('won');
         stopGame();
@@ -435,22 +435,22 @@ export default function ScribbleChallenge() {
       console.log('⚠️ Polling already active, clearing first');
       clearInterval(pollingIntervalRef.current);
     }
-    
+
     const intervalId = setInterval(() => {
       // Use ref instead of DOM attribute to check current state
       const currentState = gameStateRef.current;
       console.log('⏰ Polling tick, game state:', currentState);
-      
+
       if (currentState !== 'playing') {
         console.log('🛑 Game not playing, stopping polling');
         clearInterval(intervalId);
         pollingIntervalRef.current = null;
         return;
       }
-      
+
       analyzeCurrentDrawing();
     }, 1500);
-    
+
     pollingIntervalRef.current = intervalId;
     console.log('✅ Polling interval started with ID:', intervalId);
   }, [analyzeCurrentDrawing]);
@@ -473,10 +473,10 @@ export default function ScribbleChallenge() {
   // Start game
   const startGame = () => {
     console.log('🎮 Starting new game');
-    
+
     // Clean up any existing intervals first
     stopGame();
-    
+
     const word = getRandomWord();
     console.log('🎯 Target word:', word);
     setTargetWord(word);
@@ -542,7 +542,7 @@ export default function ScribbleChallenge() {
   // Word selection timer
   useEffect(() => {
     if (gameState !== 'wordSelection') return;
-    
+
     const timer = setInterval(() => {
       setSelectionTimeLeft((prev) => {
         if (prev <= 1) {
@@ -555,7 +555,7 @@ export default function ScribbleChallenge() {
         return prev - 1;
       });
     }, 1000);
-    
+
     return () => clearInterval(timer);
   }, [gameState, wordOptions]);
 
@@ -611,475 +611,397 @@ export default function ScribbleChallenge() {
   }, []);
 
   return (
-    <div 
-      className="h-screen overflow-auto" 
-      style={{ 
-        fontFamily: 'Arial, Helvetica, sans-serif',
-      }} 
-      data-game-state={gameState}
+    <div
+      className="h-screen w-full overflow-hidden flex flex-col items-center"
+      style={{
+        fontFamily: '"Nunito", "Segoe UI", Roboto, Helvetica, Arial, sans-serif',
+        backgroundColor: '#3B63BC',
+        backgroundImage: "url('/Untitled%20(1920%20x%201080%20px)(3).png')",
+        backgroundSize: 'auto',
+        backgroundPosition: 'center',
+        backgroundRepeat: 'no-repeat'
+      }}
     >
-      {/* AUTH PHASE */}
-      {gameState === 'AUTH' && (
-        <div className="h-screen overflow-auto text-black font-mono p-4 md:p-8 flex items-center justify-center" style={{
-          background: '#2c5f99',
-          backgroundImage: `url("data:image/svg+xml,%3Csvg width='60' height='60' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M10 10h5v5h-5zm20 0h5v5h-5zm20 0h5v5h-5zM10 30h5v5h-5zm20 0h5v5h-5zm20 0h5v5h-5z' fill='%23234a7a' fill-opacity='0.4'/%3E%3C/svg%3E")`
-        }}>
-          <div className="max-w-md w-full bg-white shadow-[16px_16px_0px_#000] p-8">
-            <div className="text-center mb-8">
-              <div className="inline-flex items-center justify-center w-20 h-20 bg-neo-pink border-4 border-black mb-4">
-                <Palette className="w-10 h-10 text-white" />
-              </div>
-              <h1 className="text-4xl font-heading mb-2 uppercase">
-                AI Scribble <span className="text-neo-pink">Challenge</span>
-              </h1>
-              <p className="font-bold text-lg">Enter your Player ID to start</p>
-            </div>
-
-            <form onSubmit={checkPlayer} className="space-y-4">
-              <input
-                type="text"
-                value={uid}
-                onChange={(e) => setUid(e.target.value)}
-                placeholder="23BAI..."
-                required
-                autoFocus
-                className="w-full text-4xl font-heading p-4 border-4 border-black text-center uppercase"
-              />
-
-              <button
-                type="submit"
-                disabled={loading || !uid.trim()}
-                className="w-full bg-black text-white text-2xl font-heading py-4 hover:bg-neo-green hover:text-black transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                {loading ? (
-                  <div className="flex items-center justify-center gap-2">
-                    <Loader2 className="w-5 h-5 animate-spin" />
-                    CHECKING...
-                  </div>
-                ) : (
-                  'VERIFY PLAYER'
-                )}
-              </button>
-            </form>
-
-            <div className="mt-6 text-center text-sm">
-              <p className="font-bold">Entry Fee: 20 💎</p>
-            </div>
+      {/* GLOBAL LOGO & AD SPACE (Top Area) */}
+      <div className="w-full max-w-[1200px] mx-auto p-4 flex flex-col items-center justify-center pointer-events-none z-10">
+        <div className="pointer-events-auto mb-2 text-center">
+          <div className="text-6xl md:text-8xl font-black tracking-wider flex items-center justify-center gap-1 drop-shadow-[4px_4px_0px_rgba(0,0,0,0.2)]"
+            style={{ textShadow: '4px 4px 0px #00000040', WebkitTextStroke: '2px black' }}>
+            <span className="text-[#FF5959]">s</span>
+            <span className="text-[#FF9D47]">k</span>
+            <span className="text-[#FFE647]">r</span>
+            <span className="text-[#65E068]">i</span>
+            <span className="text-[#59C7F7]">b</span>
+            <span className="text-[#5D59FF]">b</span>
+            <span className="text-[#A859FF]">l</span>
+            <span className="text-white">.io</span>
+            <span className="text-[#FF5959] ml-1">!</span>
           </div>
-        </div>
-      )}
-
-      {/* BET PHASE */}
-      {gameState === 'BET' && playerData && (
-        <div className="h-screen overflow-auto text-black font-mono p-4 md:p-8 flex items-center justify-center" style={{
-          background: '#2c5f99',
-          backgroundImage: `url("data:image/svg+xml,%3Csvg width='60' height='60' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M10 10h5v5h-5zm20 0h5v5h-5zm20 0h5v5h-5zM10 30h5v5h-5zm20 0h5v5h-5zm20 0h5v5h-5z' fill='%23234a7a' fill-opacity='0.4'/%3E%3C/svg%3E")`
-        }}>
-          <div className="max-w-md w-full bg-white border-8 border-black shadow-[16px_16px_0px_#000] p-8">
-            <div className="text-center mb-6">
-              <div className="inline-flex items-center justify-center w-20 h-20 bg-neo-green border-4 border-black mb-4">
-                <span className="text-4xl">🎨</span>
-              </div>
-              <h1 className="text-4xl font-heading mb-2 uppercase">
-                AI Scribble <span className="text-neo-pink">Challenge</span>
-              </h1>
-              <h2 className="text-2xl font-bold mb-2">PLAYER: {playerData.name || uid}</h2>
-            </div>
-
-            <div className="bg-neo-cyan border-4 border-black p-6 mb-6">
-              <div className="text-center">
-                <div className="text-4xl font-heading mb-4">BALANCE: {playerData.stonks} 💎</div>
-                <div className="text-2xl font-bold mb-2">ENTRY FEE: -20 💎</div>
-                <div className="border-t-4 border-black pt-3 mt-3">
-                  <div className="text-3xl font-heading">
-                    AFTER ENTRY: {playerData.stonks - 20} 💎
-                  </div>
+          {/* AVATAR STRIP */}
+          {gameState === 'AUTH' && (
+            <div className="flex gap-2 justify-center mt-4 opacity-90">
+              {['😤', '😎', '🤪', '🤓', '🤖', '👽', '👻', '🤡'].map((emoji, i) => (
+                <div key={i} className={`w-10 h-10 rounded-full flex items-center justify-center text-2xl border-2 border-black ${[
+                  'bg-[#FF5959]', 'bg-[#FF9D47]', 'bg-[#FFE647]', 'bg-[#65E068]', 'bg-[#59C7F7]', 'bg-[#5D59FF]', 'bg-[#A859FF]', 'bg-[#FF8FAB]'
+                ][i]}`}>
+                  {emoji}
                 </div>
-              </div>
-            </div>
-
-            {playerData.stonks < 20 ? (
-              <div className="bg-red-500 text-white p-4 font-bold text-xl border-4 border-black text-center mb-4">
-                INSUFFICIENT FUNDS
-              </div>
-            ) : (
-              <button
-                onClick={payAndStart}
-                disabled={loading}
-                className="w-full bg-neo-green text-black text-3xl font-heading py-6 border-4 border-black shadow-[16px_16px_0px_#000] hover:translate-y-1 hover:shadow-none transition-all disabled:opacity-50 disabled:cursor-not-allowed mb-4"
-              >
-                {loading ? (
-                  <div className="flex items-center justify-center gap-2">
-                    <Loader2 className="w-5 h-5 animate-spin" />
-                    PROCESSING...
-                  </div>
-                ) : (
-                  'PAY 20 & START'
-                )}
-              </button>
-            )}
-
-            <button
-              onClick={resetGame}
-              className="w-full text-center underline hover:text-neo-pink font-bold"
-            >
-              Cancel
-            </button>
-          </div>
-        </div>
-      )}
-
-      {/* WORD SELECTION PHASE */}
-      {gameState === 'wordSelection' && (
-        <div className="h-screen overflow-auto py-6 px-4" style={{
-          background: '#2c5f99',
-          backgroundImage: `url("data:image/svg+xml,%3Csvg width='60' height='60' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M10 10h5v5h-5zm20 0h5v5h-5zm20 0h5v5h-5zM10 30h5v5h-5zm20 0h5v5h-5zm20 0h5v5h-5z' fill='%23234a7a' fill-opacity='0.4'/%3E%3C/svg%3E")`
-        }}>
-          <div className="max-w-4xl mx-auto flex flex-col items-center justify-center min-h-[calc(100vh-3rem)]">
-            <div className="bg-white rounded-xl shadow-2xl border-4 border-gray-800 p-8 w-full">
-              <div className="text-center mb-8">
-                <h2 className="text-4xl font-bold text-gray-800 mb-4">Choose Your Word</h2>
-                <div className="flex items-center justify-center gap-3 mb-2">
-                  <div className={`text-6xl font-bold ${
-                    selectionTimeLeft <= 5 ? 'text-red-600 animate-pulse' : 'text-blue-600'
-                  }`}>
-                    {selectionTimeLeft}
-                  </div>
-                  <span className="text-2xl text-gray-600">seconds</span>
-                </div>
-                <p className="text-gray-600 text-lg">
-                  {selectionTimeLeft <= 5 ? '⏰ Hurry up!' : 'Pick a word to draw'}
-                </p>
-              </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                {wordOptions.map((word, index) => (
-                  <button
-                    key={index}
-                    onClick={() => selectWord(word)}
-                    className="group relative bg-gradient-to-br from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white p-8 rounded-xl border-4 border-gray-800 shadow-lg hover:shadow-2xl hover:scale-105 transition-all duration-200"
-                  >
-                    <div className="text-4xl font-bold uppercase tracking-wide mb-2">
-                      {word}
-                    </div>
-                    <div className="text-sm opacity-75">
-                      {word.length} letters
-                    </div>
-                    <div className="absolute inset-0 bg-white opacity-0 group-hover:opacity-10 rounded-xl transition-opacity" />
-                  </button>
-                ))}
-              </div>
-
-              <div className="mt-8 text-center">
-                <p className="text-sm text-gray-600">
-                  💡 A random word will be selected if you don't choose in time
-                </p>
-              </div>
-            </div>
-
-            <button
-              onClick={resetGame}
-              className="mt-6 text-white underline hover:text-neo-pink font-bold text-lg"
-            >
-              Cancel Game
-            </button>
-          </div>
-        </div>
-      )}
-
-      {/* GAME PHASE */}
-      {(gameState === 'playing' || gameState === 'won' || gameState === 'lost') && (
-        <div className="min-h-screen py-6 px-4" style={{
-          background: '#2c5f99',
-          backgroundImage: `url("data:image/svg+xml,%3Csvg width='60' height='60' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M10 10h5v5h-5zm20 0h5v5h-5zm20 0h5v5h-5zM10 30h5v5h-5zm20 0h5v5h-5zm20 0h5v5h-5z' fill='%23234a7a' fill-opacity='0.4'/%3E%3C/svg%3E")`
-        }}>
-        <div className="max-w-7xl mx-auto">
-        
-        {/* Header */}
-        <div className="flex items-center justify-between mb-4">
-          <div className="text-4xl font-bold" style={{ 
-            fontFamily: 'Comic Sans MS, cursive',
-            textShadow: '3px 3px 0px rgba(0,0,0,0.2)',
-            color: '#ffffff',
-            letterSpacing: '2px'
-          }}>
-            skribbl<span style={{ color: '#ff6b6b' }}>.io</span>
-          </div>
-          
-          {gameState === 'playing' && (
-            <div className="flex items-center gap-4">
-              <div className="flex items-center gap-3">
-                <span className="text-white font-bold text-lg" style={{ fontFamily: 'Arial, Helvetica, sans-serif' }}>
-                  Round 1 of 1
-                </span>
-              </div>
-              <button className="w-10 h-10 bg-white rounded-full border-[3px] border-black flex items-center justify-center shadow-md hover:bg-gray-100 transition-colors">
-                <span className="text-xl">⚙️</span>
-              </button>
+              ))}
             </div>
           )}
         </div>
+      </div>
 
-        {/* Persistent Bar - Visible in playing, won, lost states */}
-        {(gameState === 'playing' || gameState === 'won' || gameState === 'lost') && (
-          <div className="shadow-lg p-3 mb-4" style={{
-            background: 'linear-gradient(180deg, #4a90e2 0%, #357abd 100%)',
-            borderTop: '3px solid #2c5f99',
-            borderBottom: '3px solid #1a4d8f'
-          }}>
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-4">
-                <div className="flex items-center gap-2 bg-white rounded-full px-3 py-1 border-2 border-gray-800">
-                  <span className="text-xl">🕐</span>
-                  <span className="text-sm font-bold text-gray-800">Round 1 of 1</span>
+      {/* GAME WINDOW CONTAINER */}
+      <div className="flex-1 w-full max-w-[1200px] px-2 md:px-4 pb-4 min-h-0 flex flex-col items-center">
+
+        {/* LOBBY / LOGIN */}
+        {gameState === 'AUTH' && (
+          <div className="flex-1 flex items-center justify-center w-full">
+            <div className="bg-[#152e4d]/90 p-4 rounded-xl shadow-[0px_0px_20px_#00000040] w-full max-w-md backdrop-blur-sm border border-[#ffffff10]">
+              {/* Input Row */}
+              <div className="flex gap-2 mb-4">
+                <input
+                  type="text"
+                  className="flex-1 bg-white rounded px-3 py-2 text-lg font-bold text-gray-800 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-[#3BA4E8]"
+                  placeholder="Enter your name"
+                  value={uid}
+                  onChange={(e) => setUid(e.target.value)}
+                  required
+                  autoFocus
+                />
+                <div className="bg-white rounded px-3 py-2 flex items-center justify-between min-w-[100px] cursor-pointer hover:bg-gray-100">
+                  <span className="font-bold text-sm text-gray-700">English</span>
+                  <span className="text-xs ml-2">▼</span>
                 </div>
               </div>
-              
-              <div className="flex flex-col items-center gap-1 flex-1">
-                {gameState === 'playing' && (
+
+              {/* Avatar Customizer */}
+              <div className="bg-[#0c2340] rounded-lg p-6 mb-4 relative border border-[#ffffff05]">
+                <button className="absolute top-2 right-2 text-white/50 hover:text-white p-1">🎲</button>
+                <div className="flex items-center justify-center gap-6">
+                  <div className="flex flex-col gap-2">
+                    <button className="text-white text-2xl hover:text-[#3BA4E8] transition-colors">◀</button>
+                    <button className="text-white text-2xl hover:text-[#3BA4E8] transition-colors">◀</button>
+                    <button className="text-white text-2xl hover:text-[#3BA4E8] transition-colors">◀</button>
+                  </div>
+
+                  <div className="w-32 h-32 bg-[#f0f0f0] rounded-full border-4 border-white flex items-center justify-center text-6xl shadow-lg">
+                    {/* Placeholder for dynamic avatar, using simple emoji for now */}
+                    {playerData?.avatar || '👤'}
+                  </div>
+
+                  <div className="flex flex-col gap-2">
+                    <button className="text-white text-2xl hover:text-[#3BA4E8] transition-colors">▶</button>
+                    <button className="text-white text-2xl hover:text-[#3BA4E8] transition-colors">▶</button>
+                    <button className="text-white text-2xl hover:text-[#3BA4E8] transition-colors">▶</button>
+                  </div>
+                </div>
+              </div>
+
+              {/* Buttons */}
+              <div className="space-y-3">
+                <button
+                  onClick={checkPlayer}
+                  disabled={loading || !uid.trim()}
+                  className="w-full bg-[#53E07D] hover:bg-[#46c96b] text-white text-2xl font-black py-3 rounded shadow-[0px_4px_0px_#2b964d] active:shadow-none active:translate-y-[4px] transition-all uppercase disabled:opacity-50 disabled:cursor-not-allowed border-none cursor-pointer"
+                >
+                  {loading ? <Loader2 className="w-6 h-6 animate-spin mx-auto" /> : 'Play!'}
+                </button>
+                <button
+                  className="w-full bg-[#3BA4E8] hover:bg-[#2c8bc7] text-white text-lg font-bold py-2 rounded shadow-[0px_4px_0px_#1a6ca0] active:shadow-none active:translate-y-[4px] transition-all border-none cursor-pointer"
+                >
+                  Create Private Room
+                </button>
+              </div>
+
+              <div className="mt-4 text-center text-xs text-white/40">
+                Entry Fee: 20 💎 (Requires Balance)
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* BET / CONFIRMATION */}
+        {gameState === 'BET' && playerData && (
+          <div className="flex-1 flex items-center justify-center w-full">
+            <div className="bg-[#152e4d]/90 p-1 rounded-xl shadow-[0px_0px_20px_#00000040] w-full max-w-md backdrop-blur-sm">
+              <div className="bg-white rounded-lg p-8 text-center">
+                <h2 className="text-2xl font-black text-[#0E3359] mb-4 uppercase">Ready to Draw?</h2>
+
+                <div className="bg-blue-50 border-2 border-blue-100 rounded-xl p-4 mb-6">
+                  <div className="flex justify-between items-center mb-2">
+                    <span className="font-bold text-gray-500">Player</span>
+                    <span className="font-black text-lg text-[#0E3359]">{playerData.name || uid}</span>
+                  </div>
+                  <div className="flex justify-between items-center mb-2">
+                    <span className="font-bold text-gray-500">Balance</span>
+                    <span className="font-black text-lg text-[#0E3359]">{playerData.stonks} 💎</span>
+                  </div>
+                  <div className="border-t border-blue-200 my-2"></div>
+                  <div className="flex justify-between items-center text-green-600">
+                    <span className="font-bold">Entry Prize</span>
+                    <span className="font-black text-xl">+35 💎</span>
+                  </div>
+                </div>
+
+                {playerData.stonks < 20 ? (
+                  <div className="bg-red-100 text-red-600 p-4 rounded-lg font-bold mb-4">
+                    Insufficient Stonks (Need 20)
+                  </div>
+                ) : (
+                  <button
+                    onClick={payAndStart}
+                    disabled={loading}
+                    className="w-full bg-[#53E07D] hover:bg-[#46c96b] text-white text-2xl font-black py-4 rounded-lg shadow-[0px_4px_0px_#2b964d] active:shadow-none active:translate-y-[4px] transition-all uppercase mb-4"
+                  >
+                    {loading ? <Loader2 className="w-6 h-6 animate-spin mx-auto" /> : 'Start Game (20💎)'}
+                  </button>
+                )}
+                <button onClick={resetGame} className="text-gray-400 font-bold hover:text-gray-600 text-sm">Return to Lobby</button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* WORD SELECTION (Transparent Overlay Style) */}
+        {gameState === 'wordSelection' && (
+          <div className="flex-1 flex flex-col items-center justify-center w-full">
+            <div className="bg-[#00000040] px-8 py-4 rounded-xl backdrop-blur-sm mb-8 text-center border-2 border-[#ffffff10]">
+              <h2 className="text-3xl font-black text-white mb-2 drop-shadow-md">Choose a word!</h2>
+              <div className="text-white/90 font-bold flex items-center justify-center gap-2 text-xl">
+                <Clock className="w-6 h-6" />
+                {selectionTimeLeft}s
+              </div>
+            </div>
+
+            <div className="flex gap-4 w-full max-w-4xl px-4 justify-center">
+              {wordOptions.map((word, i) => (
+                <button
+                  key={i}
+                  onClick={() => selectWord(word)}
+                  className="group bg-white hover:bg-[#5C96D8] hover:text-white p-8 rounded-xl shadow-[4px_4px_0px_#00000020] transition-all transform hover:-translate-y-1 hover:shadow-[6px_6px_0px_#00000020] border-b-4 border-gray-200 hover:border-blue-400 w-64 text-center"
+                >
+                  <span className="block text-2xl font-black uppercase tracking-wider mb-2">{word}</span>
+                  <span className="text-sm font-bold text-gray-400 group-hover:text-white/80 bg-gray-100 group-hover:bg-white/20 px-2 py-1 rounded inline-block">
+                    {word.length} letters
+                  </span>
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* MAIN GAME INTERFACE */}
+        {(gameState === 'playing' || gameState === 'won' || gameState === 'lost') && (
+          <div className="bg-white rounded-xl shadow-[0px_0px_20px_rgba(0,0,0,0.2)] flex flex-col overflow-hidden h-full max-h-[800px] w-full">
+
+            {/* TOP INFO BAR */}
+            <div className="bg-[#f5f5f5] p-2 flex items-center justify-between border-b-2 border-[#e0e0e0]">
+              <div className="flex items-center gap-4">
+                {/* Timer */}
+                <div className="relative w-12 h-12 flex items-center justify-center">
+                  <Clock className="w-10 h-10 text-gray-300 absolute" />
+                  <span className="font-black text-xl text-[#0E3359] relative z-10">{timeLeft}</span>
+                </div>
+                <div className="text-xl font-bold text-[#0E3359]">
+                  Round 1 of 1
+                </div>
+              </div>
+
+              {/* Word Hint / Status */}
+              <div className="flex flex-col items-center">
+                {gameState === 'playing' ? (
                   <>
-                    <div className="text-xs font-bold text-white tracking-wider">GUESS THIS</div>
-                    <div className="flex items-center gap-2">
-                      <div className="text-2xl font-bold text-white tracking-widest" style={{ fontFamily: 'monospace' }}>
-                        {targetWord.split('').map((char, i) => (
-                          <span key={i} className="inline-block mx-0.5">
-                            <span className="border-b-4 border-white pb-1">{char.toUpperCase()}</span>
-                          </span>
-                        ))}
-                      </div>
-                      <span className="text-sm font-bold text-white bg-black bg-opacity-30 rounded px-2 py-0.5">
-                        {targetWord.length}
-                      </span>
+                    <div className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-1">GUESS THIS</div>
+                    <div className="font-mono text-2xl font-black text-[#0E3359] tracking-widest leading-none">
+                      {targetWord.split('').map((_, i) => (
+                        <span key={i} className="border-b-4 border-[#0E3359] mx-1 inline-block w-4 h-6"></span>
+                      ))}
+                      <span className="ml-2 text-sm text-gray-400 font-sans tracking-normal">{targetWord.length}</span>
                     </div>
                   </>
-                )}
-                {gameState === 'won' && (
-                  <div className="text-xl font-bold text-white">✓ AI guessed: {targetWord.toUpperCase()}</div>
-                )}
-                {gameState === 'lost' && (
-                  <div className="text-xl font-bold text-white">✗ Time's up! Word was: {targetWord.toUpperCase()}</div>
+                ) : (
+                  <div className="text-xl font-black text-[#0E3359]">
+                    Word was: <span className="text-[#53E07D]">{targetWord.toUpperCase()}</span>
+                  </div>
                 )}
               </div>
 
               <div className="flex items-center gap-2">
-                {gameState === 'playing' && (
-                  <div className={`text-3xl font-bold px-4 py-1 rounded-lg ${
-                    timeLeft <= 10 ? 'bg-red-500 text-white animate-pulse' : 'bg-white text-gray-800'
-                  } border-2 border-gray-800`}>
-                    {timeLeft}s
-                  </div>
-                )}
+                <button className="p-2 hover:bg-gray-200 rounded-full transition-colors">
+                  <span className="text-xl">⚙️</span>
+                </button>
               </div>
             </div>
-          </div>
-        )}
 
-        {/* Shield Alert */}
-        {shieldActive && (
-          <div className="bg-yellow-300 border-4 border-yellow-600 rounded-lg p-3 mb-4 text-center shadow-lg">
-            <p className="text-yellow-900 font-bold">
-              🛡️ Guardian is recharging shields... (5s pause)
-            </p>
-          </div>
-        )}
+            {/* GAME CONTENT COLUMNS */}
+            <div className="flex-1 flex min-h-0 bg-white">
 
-        {/* Main Game Layout - Three Column */}
-        <div className="flex flex-col lg:flex-row gap-4">
-          
-          {/* LEFT SIDEBAR - Leaderboard */}
-          <div className="lg:w-72 w-full">
-            <div className="bg-white rounded-xl shadow-lg border-4 border-gray-800 overflow-hidden">
-              <div className="space-y-0">
-                {players.map((player, index) => {
-                  const isDrawing = index === 0 && gameState === 'playing';
-                  const bgColor = isDrawing ? '#90EE90' : index === 1 ? '#FFB6C6' : '#f0f0f0';
-                  
-                  return (
-                    <div
-                      key={player.id}
-                      className="flex items-center gap-3 p-4 border-b-2 border-gray-300 last:border-b-0"
-                      style={{ backgroundColor: bgColor }}
-                    >
-                      <div className="text-sm font-bold text-gray-700 w-6">#{index + 1}</div>
-                      <div className="flex items-center justify-center w-12 h-12 rounded-full border-4 border-gray-800 text-2xl font-bold" style={{
-                        backgroundColor: index === 0 ? '#9b59b6' : '#e74c3c'
-                      }}>
+              {/* LEFT: PLAYERS */}
+              <div className="w-48 md:w-56 flex flex-col border-r-2 border-[#e0e0e0] bg-[#FAFAFA]">
+                {players.map((player, index) => (
+                  <div key={player.id} className={`flex items-center gap-2 p-3 ${index % 2 === 0 ? 'bg-white' : 'bg-[#f4f4f4]'} ${index === 0 && gameState === 'playing' ? '!bg-[#E3F2FD] border-l-4 border-[#3BA4E8]' : ''}`}>
+                    <div className="flex flex-col items-center mr-1">
+                      <div className={`text-lg font-black ${index === 0 ? 'text-[#3BA4E8]' : 'text-gray-400'}`}>#{index + 1}</div>
+                    </div>
+                    <div className="relative">
+                      <div className="w-10 h-10 rounded-full bg-white border-2 border-gray-300 flex items-center justify-center text-xl shadow-sm">
                         {player.avatar}
                       </div>
-                      <div className="flex-1">
-                        <div className="font-bold text-gray-900 text-lg">{player.name}</div>
-                        <div className="text-sm text-gray-700 font-semibold">{player.score} points</div>
-                      </div>
-                      {isDrawing && (
-                        <div className="text-xl">✏️</div>
+                      {index === 0 && gameState === 'playing' && (
+                        <div className="absolute -top-1 -right-1 text-lg transform rotate-90">✏️</div>
                       )}
                     </div>
-                  );
-                })}
-              </div>
-            </div>
-          </div>
-
-          {/* CENTER COLUMN - Canvas */}
-          <div className="flex-1 min-w-0">
-            <div className="bg-white rounded-xl shadow-lg border-4 border-gray-800 overflow-hidden">
-              
-              {/* Canvas */}
-              <div className="relative bg-white" style={{ aspectRatio: '4/3' }}>
-                <canvas
-                  ref={canvasRef}
-                  onMouseDown={startDrawing}
-                  onMouseMove={draw}
-                  onMouseUp={stopDrawing}
-                  onMouseLeave={stopDrawing}
-                  onTouchStart={handleTouchStart}
-                  onTouchMove={handleTouchMove}
-                  onTouchEnd={handleTouchEnd}
-                  className="w-full h-full cursor-crosshair touch-none"
-                  style={{ display: 'block' }}
-                />
-                
-                {/* Overlay for non-playing states */}
-                {gameState !== 'playing' && (
-                  <div className="absolute inset-0 bg-white bg-opacity-98 flex items-center justify-center">
-                    {gameState === 'won' && (
-                      <div className="text-center p-8">
-                        <h2 className="text-5xl font-bold text-green-600 mb-4">🎉 You Won!</h2>
-                        <p className="text-xl text-gray-700 mb-6">
-                          The AI guessed <span className="font-bold text-green-600">{currentAiGuess}</span>
-                          <br />in {30 - timeLeft} seconds!
-                          <br />You drew: <span className="font-bold text-blue-600">{targetWord}</span>
-                          <br /><span className="text-green-600 font-bold text-2xl">+35 💎</span>
-                        </p>
-                        <button
-                          onClick={resetGame}
-                          className="px-10 py-4 bg-gray-600 hover:bg-gray-700 text-white font-bold rounded-xl text-lg transition-colors border-4 border-gray-800 shadow-lg"
-                        >
-                          Exit
-                        </button>
-                      </div>
-                    )}
-
-                    {gameState === 'lost' && (
-                      <div className="text-center p-8">
-                        <h2 className="text-5xl font-bold text-red-600 mb-4">😢 You Lost! You worthless peace of human garbage. AI will one day take your job</h2>
-                        <p className="text-xl text-gray-700 mb-6">
-                          Time's up! The AI couldn't guess your drawing!
-                          <br />AI's final guess: <span className="font-bold text-red-600">{currentAiGuess || 'none'}</span>
-                          <br />You needed to draw: <span className="font-bold text-blue-600">{targetWord}</span>
-                        </p>
-                        <button
-                          onClick={resetGame}
-                          className="px-10 py-4 bg-gray-600 hover:bg-gray-700 text-white font-bold rounded-xl text-lg transition-colors border-4 border-gray-800 shadow-lg"
-                        >
-                          Exit
-                        </button>
-                      </div>
-                    )}
-                  </div>
-                )}
-              </div>
-
-              {/* Toolbar - Only show when playing */}
-              {gameState === 'playing' && (
-                <div className="p-4 bg-gray-100 border-t-4 border-gray-800">
-                  <div className="flex items-center justify-between gap-4">
-                    {/* Color Swatches */}
-                    <div className="flex-1">
-                      <div className="flex flex-wrap gap-2">
-                        {COLORS.slice(0, 12).map((color) => (
-                          <button
-                            key={color}
-                            onClick={() => setSelectedColor(color)}
-                            className={`w-8 h-8 rounded border-2 transition-all hover:scale-110 ${
-                              selectedColor === color ? 'border-gray-900 ring-2 ring-gray-900 scale-110' : 'border-gray-400'
-                            }`}
-                            style={{ backgroundColor: color }}
-                            title={color}
-                          />
-                        ))}
-                      </div>
-                    </div>
-
-                    {/* Brush Sizes */}
-                    <div className="flex gap-2 items-center">
-                      {BRUSH_SIZES.slice(0, 4).map((size) => (
-                        <button
-                          key={size}
-                          onClick={() => setBrushSize(size)}
-                          className={`w-9 h-9 rounded-full border-2 transition-all hover:scale-110 flex items-center justify-center ${
-                            brushSize === size ? 'border-gray-900 bg-gray-300' : 'border-gray-400 bg-white'
-                          }`}
-                          title={`Size ${size}`}
-                        >
-                          <div
-                            className="rounded-full bg-gray-800"
-                            style={{ width: `${size * 1.5}px`, height: `${size * 1.5}px` }}
-                          />
-                        </button>
-                      ))}
-                    </div>
-
-                    {/* Clear Button */}
-                    <button
-                      onClick={clearCanvas}
-                      className="px-5 py-2 bg-white hover:bg-gray-200 text-gray-900 font-bold rounded-lg border-2 border-gray-600 transition-colors shadow-sm"
-                    >
-                      🗑️
-                    </button>
-                  </div>
-                </div>
-              )}
-            </div>
-          </div>
-
-          {/* RIGHT SIDEBAR - Chat */}
-          <div className="lg:w-80 w-full">
-            <div className="bg-white rounded-xl shadow-lg border-4 border-gray-800 flex flex-col overflow-hidden" style={{ height: gameState === 'playing' ? '500px' : '400px' }}>
-              
-              {/* Messages Area */}
-              <div className="flex-1 overflow-y-auto p-3 space-y-2">
-                {gameState === 'playing' && (
-                  <div className="text-center p-2 bg-blue-100 rounded-lg border-2 border-blue-300">
-                    <span className="text-sm font-bold text-blue-800">👤 You are drawing now!</span>
-                  </div>
-                )}
-                
-                {currentAiGuess && gameState === 'playing' && (
-                  <div className="p-2 bg-gray-100 rounded-lg border-2 border-gray-300">
-                    <div className="font-bold text-sm text-gray-700">🤖 AI Guardian</div>
-                    <div className="text-sm text-gray-800">{currentAiGuess}</div>
-                  </div>
-                )}
-
-                
-                
-                {chatMessages.map((msg) => (
-                  <div
-                    key={msg.id}
-                    className={`p-2 rounded-lg border-2 ${
-                      msg.isCorrect
-                        ? 'bg-green-100 border-green-400'
-                        : 'bg-gray-50 border-gray-300'
-                    }`}
-                  >
-                    <div className="font-bold text-sm text-gray-700">{msg.author}</div>
-                    <div className={`text-sm ${msg.isCorrect ? 'text-green-800 font-bold' : 'text-gray-800'}`}>
-                      {msg.message}
-                      {msg.isCorrect && ' guessed the word!'}
+                    <div className="flex-1 min-w-0">
+                      <div className="font-bold text-gray-800 text-sm truncate" style={{ color: player.id === 1 ? '#3BA4E8' : 'inherit' }}>{player.name} {player.id === 1 && '(You)'}</div>
+                      <div className="text-xs font-bold text-gray-500">{player.score} pts</div>
                     </div>
                   </div>
                 ))}
-                <div ref={chatEndRef} />
+              </div>
+
+              {/* CENTER: CANVAS */}
+              <div className="flex-1 flex flex-col bg-[#F0F0F0] relative overflow-hidden">
+
+                {/* Canvas Area */}
+                <div className="flex-1 p-4 flex items-center justify-center">
+                  <div className="bg-white shadow-lg w-full h-full rounded cursor-crosshair relative">
+                    <canvas
+                      ref={canvasRef}
+                      className="w-full h-full touch-none rounded"
+                      onMouseDown={startDrawing}
+                      onMouseMove={draw}
+                      onMouseUp={stopDrawing}
+                      onMouseLeave={stopDrawing}
+                      onTouchStart={handleTouchStart}
+                      onTouchMove={handleTouchMove}
+                      onTouchEnd={handleTouchEnd}
+                    />
+
+                    {/* OVERLAYS */}
+                    {(gameState === 'won' || gameState === 'lost') && (
+                      <div className="absolute inset-0 bg-[#0E3359]/90 flex flex-col items-center justify-center p-8 text-center z-10 backdrop-blur-sm rounded">
+                        <h2 className={`text-5xl font-black mb-4 ${gameState === 'won' ? 'text-[#53E07D]' : 'text-[#FF6B6B]'}`}>
+                          {gameState === 'won' ? '🎉 YOU WON!' : '😢 TIME UP!'}
+                        </h2>
+                        <div className="bg-white rounded-xl p-6 mb-8 max-w-sm w-full shadow-lg">
+                          <div className="mb-4">
+                            <div className="text-gray-400 text-xs font-bold uppercase mb-1">The word was</div>
+                            <div className="text-3xl font-black text-[#0E3359]">{targetWord.toUpperCase()}</div>
+                          </div>
+                          <div className="grid grid-cols-2 gap-4 text-left p-4 bg-gray-50 rounded-lg">
+                            <div>
+                              <div className="text-gray-400 text-xs font-bold uppercase">AI Guess</div>
+                              <div className="font-bold text-lg leading-tight">{currentAiGuess || '-'}</div>
+                            </div>
+                            <div>
+                              <div className="text-gray-400 text-xs font-bold uppercase">Reward</div>
+                              <div className="font-bold text-lg text-[#53E07D]">{gameState === 'won' ? '+35' : '0'} 💎</div>
+                            </div>
+                          </div>
+                        </div>
+                        <button onClick={resetGame} className="bg-[#3BA4E8] text-white px-8 py-3 rounded-lg font-black text-xl hover:bg-[#2c8bc7] transition-colors shadow-[0px_4px_0px_#1a6ca0] active:translate-y-[2px] active:shadow-none">
+                          PLAY AGAIN
+                        </button>
+                      </div>
+                    )}
+
+                    {shieldActive && (
+                      <div className="absolute top-4 left-1/2 -translate-x-1/2 bg-yellow-400 text-yellow-900 px-4 py-2 rounded-full font-bold shadow-lg animate-pulse flex items-center gap-2 z-20">
+                        <span>🛡️</span> Shield Active
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+              </div>
+
+              {/* RIGHT: CHAT */}
+              <div className="w-64 md:w-72 flex flex-col border-l-2 border-[#e0e0e0] bg-white">
+                <div className="bg-[#F0F0F0] p-2 text-center font-bold text-gray-500 text-xs border-b border-[#e0e0e0]">
+                  CHAT
+                </div>
+
+                <div className="flex-1 overflow-y-auto p-2 space-y-1 font-sans text-[13px]">
+                  {gameState === 'playing' && (
+                    <div className="text-green-600 font-bold bg-green-50 p-1 rounded mb-2 text-center">
+                      Guess the word!
+                    </div>
+                  )}
+
+                  {currentAiGuess && gameState === 'playing' && (
+                    <div className="flex gap-2 text-gray-600 bg-gray-50 p-1.5 rounded border border-gray-100 mb-2 items-center">
+                      <span className="text-lg">🤖</span>
+                      <span className="flex-1 font-bold">AI: <span className="text-[#3BA4E8] font-normal">{currentAiGuess}</span>?</span>
+                    </div>
+                  )}
+
+                  {chatMessages.map((msg, index) => (
+                    <div key={msg.id} className={`px-2 py-0.5 rounded leading-tight ${msg.isCorrect ? 'bg-[#C8E6C9] text-[#2E7D32] py-2' : ''}`}>
+                      <span className={`font-bold mr-1 ${msg.isCorrect ? 'text-[#2E7D32]' : 'text-black'}`}>
+                        {msg.author}:
+                      </span>
+                      <span className={msg.isCorrect ? 'font-bold' : ''}>
+                        {msg.isCorrect ? 'Guessed the word!' : msg.message}
+                      </span>
+                    </div>
+                  ))}
+                  <div ref={chatEndRef} />
+                </div>
+
+                <form onSubmit={handleChatSubmit} className="p-2 bg-white border-t border-[#e0e0e0]">
+                  <input
+                    type="text"
+                    className="w-full px-3 py-2 rounded border-2 border-gray-200 focus:outline-none focus:border-[#3BA4E8] text-sm font-bold placeholder-gray-400"
+                    placeholder="Type your guess here..."
+                    value={chatInput}
+                    onChange={(e) => setChatInput(e.target.value)}
+                    maxLength={100}
+                  />
+                </form>
+              </div>
+
+            </div>
+
+            {/* TOOLBAR (Bottom of Game Window) */}
+            <div className="bg-white border-t-2 border-[#e0e0e0] p-2 flex items-center justify-center gap-6">
+              {/* Colors */}
+              <div className="flex flex-wrap gap-1 bg-[#f0f0f0] p-1.5 rounded-lg border border-[#e0e0e0]">
+                {COLORS.slice(0, 22).map((color) => (
+                  <button
+                    key={color}
+                    onClick={() => setSelectedColor(color)}
+                    className={`w-6 h-6 rounded-sm hover:scale-110 transition-transform ${selectedColor === color ? 'ring-2 ring-gray-900 z-10 scale-110' : ''}`}
+                    style={{ backgroundColor: color }}
+                  />
+                ))}
+              </div>
+
+              {/* Sizes */}
+              <div className="flex items-center gap-2 bg-[#f0f0f0] p-1.5 rounded-lg border border-[#e0e0e0]">
+                {BRUSH_SIZES.slice(0, 4).map((size) => (
+                  <button
+                    key={size}
+                    onClick={() => setBrushSize(size)}
+                    className={`w-8 h-8 rounded flex items-center justify-center hover:bg-gray-200 ${brushSize === size ? 'bg-white shadow-sm' : ''}`}
+                  >
+                    <div className="bg-black rounded-full" style={{ width: size, height: size }} />
+                  </button>
+                ))}
+              </div>
+
+              {/* Tools */}
+              <div className="flex items-center gap-2">
+                <button onClick={clearCanvas} className="p-2 hover:bg-red-100 text-gray-500 hover:text-red-500 rounded transition-colors" title="Clear">
+                  <Trash2 className="w-6 h-6" />
+                </button>
               </div>
             </div>
-          </div>
 
-        </div>
-        </div>
-        </div>
-      )}
-        
+          </div>
+        )}
+      </div>
     </div>
   );
 }
