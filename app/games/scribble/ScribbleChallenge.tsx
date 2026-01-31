@@ -29,6 +29,8 @@ const COLORS = [
   '#0000FF', '#000080', '#FF00FF', '#800080', '#FFD700', '#FFA500'
 ];
 
+const AVATARS = ['👤', '😤', '😎', '🤪', '🤓', '🤖', '👽', '👻', '🤡', '💩', '🦄', '🐶', '🐱', '🐲', '🐵', '👺'];
+
 const BRUSH_SIZES = [2, 4, 8, 12, 16];
 
 export default function ScribbleChallenge() {
@@ -61,6 +63,7 @@ export default function ScribbleChallenge() {
   // New UI state
   const [selectedColor, setSelectedColor] = useState('#000000');
   const [brushSize, setBrushSize] = useState(4);
+  const [avatarIndex, setAvatarIndex] = useState(0);
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
   const [chatInput, setChatInput] = useState('');
   const [players, setPlayers] = useState<Player[]>([
@@ -98,16 +101,34 @@ export default function ScribbleChallenge() {
         .single();
 
       if (error || !data) {
-        alert('Player not found!');
-        setPlayerData(null);
+        // Player not found or error, create pseudo-session for demo/play
+        // In a real app we'd create a user. For now, just set state.
+        setPlayerData({ name: uid, stonks: 50, avatar: AVATARS[avatarIndex] });
+        setGameState('BET');
+        // alert('Player not found!'); 
+        // setPlayerData(null);
       } else {
-        setPlayerData(data);
+        setPlayerData({ ...data, avatar: AVATARS[avatarIndex] });
         setGameState('BET');
       }
     } finally {
       setLoading(false);
     }
   };
+
+  const handlePrevAvatar = () => {
+    setAvatarIndex((prev) => (prev === 0 ? AVATARS.length - 1 : prev - 1));
+  };
+
+  const handleNextAvatar = () => {
+    setAvatarIndex((prev) => (prev === AVATARS.length - 1 ? 0 : prev + 1));
+  };
+
+  const randomizeAvatar = () => {
+    setAvatarIndex(Math.floor(Math.random() * AVATARS.length));
+  };
+
+
 
   const payAndStart = async () => {
     if (!playerData || playerData.stonks < 20) {
@@ -612,9 +633,8 @@ export default function ScribbleChallenge() {
 
   return (
     <div
-      className="h-screen w-full overflow-hidden flex flex-col items-center"
+      className="h-screen w-full overflow-hidden flex flex-col items-center font-sans"
       style={{
-        fontFamily: '"Nunito", "Segoe UI", Roboto, Helvetica, Arial, sans-serif',
         backgroundColor: '#3B63BC',
         backgroundImage: "url('/Untitled%20(1920%20x%201080%20px)(3).png')",
         backgroundSize: 'auto',
@@ -664,37 +684,49 @@ export default function ScribbleChallenge() {
                 <input
                   type="text"
                   className="flex-1 bg-white rounded px-3 py-2 text-lg font-bold text-gray-800 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-[#3BA4E8]"
-                  placeholder="Enter your name"
+                  placeholder="Enter your UID"
                   value={uid}
                   onChange={(e) => setUid(e.target.value)}
                   required
                   autoFocus
                 />
-                <div className="bg-white rounded px-3 py-2 flex items-center justify-between min-w-[100px] cursor-pointer hover:bg-gray-100">
-                  <span className="font-bold text-sm text-gray-700">English</span>
-                  <span className="text-xs ml-2">▼</span>
-                </div>
+
               </div>
 
               {/* Avatar Customizer */}
+              {/* Avatar Customizer */}
               <div className="bg-[#0c2340] rounded-lg p-6 mb-4 relative border border-[#ffffff05]">
-                <button className="absolute top-2 right-2 text-white/50 hover:text-white p-1">🎲</button>
+                <button
+                  onClick={randomizeAvatar}
+                  className="absolute top-2 right-2 text-white/50 hover:text-white p-1 hover:scale-110 transition-all"
+                  title="Randomize Avatar"
+                >
+                  🎲
+                </button>
                 <div className="flex items-center justify-center gap-6">
+                  {/* Left Controls */}
                   <div className="flex flex-col gap-2">
-                    <button className="text-white text-2xl hover:text-[#3BA4E8] transition-colors">◀</button>
-                    <button className="text-white text-2xl hover:text-[#3BA4E8] transition-colors">◀</button>
-                    <button className="text-white text-2xl hover:text-[#3BA4E8] transition-colors">◀</button>
+                    <button
+                      onClick={handlePrevAvatar}
+                      className="text-white text-4xl hover:text-[#3BA4E8] transition-colors active:scale-90"
+                    >
+                      ◀
+                    </button>
                   </div>
 
-                  <div className="w-32 h-32 bg-[#f0f0f0] rounded-full border-4 border-white flex items-center justify-center text-6xl shadow-lg">
-                    {/* Placeholder for dynamic avatar, using simple emoji for now */}
-                    {playerData?.avatar || '👤'}
+                  {/* Avatar Display */}
+                  <div className="w-32 h-32 bg-[#f0f0f0] rounded-full border-4 border-white flex items-center justify-center text-6xl shadow-lg select-none">
+                    {AVATARS[avatarIndex]}
                   </div>
 
+                  {/* Right Controls */}
                   <div className="flex flex-col gap-2">
-                    <button className="text-white text-2xl hover:text-[#3BA4E8] transition-colors">▶</button>
-                    <button className="text-white text-2xl hover:text-[#3BA4E8] transition-colors">▶</button>
-                    <button className="text-white text-2xl hover:text-[#3BA4E8] transition-colors">▶</button>
+                    <button
+                      onClick={handleNextAvatar}
+                      className="text-white text-4xl hover:text-[#3BA4E8] transition-colors active:scale-90"
+                    >
+                      ▶
+                    </button>
                   </div>
                 </div>
               </div>
@@ -708,11 +740,7 @@ export default function ScribbleChallenge() {
                 >
                   {loading ? <Loader2 className="w-6 h-6 animate-spin mx-auto" /> : 'Play!'}
                 </button>
-                <button
-                  className="w-full bg-[#3BA4E8] hover:bg-[#2c8bc7] text-white text-lg font-bold py-2 rounded shadow-[0px_4px_0px_#1a6ca0] active:shadow-none active:translate-y-[4px] transition-all border-none cursor-pointer"
-                >
-                  Create Private Room
-                </button>
+
               </div>
 
               <div className="mt-4 text-center text-xs text-white/40">
