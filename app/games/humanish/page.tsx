@@ -104,7 +104,7 @@ export default function HumanishGame() {
     }
     // Send initial AI greeting
     setTimeout(() => {
-      sendBotMessage("hey whats up lol");
+      sendBotMessage("Start the conversation with a casual hinglish greeting or question.");
     }, 1000);
   };
 
@@ -182,7 +182,7 @@ export default function HumanishGame() {
         ? [...messages, { sender: "me" as const, text: userMessage }]
         : messages;
 
-      const response = await fetch("/api/groq", {
+      const response = await fetch("/api/gemini-chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ messages: messagesToSend }),
@@ -191,11 +191,18 @@ export default function HumanishGame() {
       const data = await response.json();
 
       if (data.reply) {
-        setMessages((prev) => [
-          ...prev,
-          { sender: "partner", text: data.reply },
-        ]);
-        setIsWaitingForReply(false);
+        // Calculate fake delay: Reduced for better UX
+        const baseDelay = 500 + Math.random() * 500;
+        const typingDelay = data.reply.length * (10 + Math.random() * 20);
+        const totalDelay = Math.min(baseDelay + typingDelay, 3000); // reduced cap from 8000 reduced base delay and per char delay
+
+        setTimeout(() => {
+          setMessages((prev) => [
+            ...prev,
+            { sender: "partner", text: data.reply },
+          ]);
+          setIsWaitingForReply(false);
+        }, totalDelay);
       }
     } catch (error) {
       console.error("Failed to get bot response:", error);

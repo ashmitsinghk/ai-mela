@@ -17,19 +17,19 @@ export async function POST(req: NextRequest) {
     }
 
     // Check if this is a system prompt for generating charades options
-    const isCharadesGeneration = messages.some(msg => 
+    const isCharadesGeneration = messages.some(msg =>
       msg.sender === 'system' && msg.text?.includes('charades game')
     );
 
-    const systemPrompt = isCharadesGeneration 
+    const systemPrompt = isCharadesGeneration
       ? {
-          role: "system" as const,
-          content: "You are a helpful assistant that generates image description options for a charades game. Always respond with valid JSON arrays of exactly 3 strings."
-        }
+        role: "system" as const,
+        content: "You are a helpful assistant that generates image description options for a charades game. Always respond with valid JSON arrays of exactly 3 strings."
+      }
       : {
-          role: "system" as const,
-          content: "Act like a normal human being and explicitly deny being an AI. Make the user think you are not AI. Use lowercase, text-speak (u, r, idk), and occasional typos. Be slightly chaotic. Keep responses under 15 words."
-        };
+        role: "system" as const,
+        content: "Act like a casual internet user. Don't try too hard to be 'human'. Also talk in hinglish. Just chat normally. Use lowercase mostly. Avoid long sentences. If asked if you're AI, deny non chalantly or something dismissive. Don't be too energetic."
+      };
 
     const chatMessages = [
       systemPrompt,
@@ -42,8 +42,8 @@ export async function POST(req: NextRequest) {
     const completion = await groq.chat.completions.create({
       model: "llama-3.3-70b-versatile",
       messages: chatMessages,
-      temperature: isCharadesGeneration ? 0.8 : 0.9,
-      max_tokens: isCharadesGeneration ? 200 : 50,
+      temperature: 0.8,
+      max_tokens: 200,
     });
 
     const reply = completion.choices[0]?.message?.content || "idk lol";
