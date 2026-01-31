@@ -711,14 +711,15 @@ export default function ScribbleChallenge() {
           <div className="text-6xl md:text-8xl font-black tracking-wider flex items-center justify-center gap-1 drop-shadow-[4px_4px_0px_rgba(0,0,0,0.2)]"
             style={{ textShadow: '4px 4px 0px #00000040', WebkitTextStroke: '2px black' }}>
             <span className="text-[#FF5959]">s</span>
-            <span className="text-[#FF9D47]">k</span>
+            <span className="text-[#FF9D47]">c</span>
             <span className="text-[#FFE647]">r</span>
             <span className="text-[#65E068]">i</span>
             <span className="text-[#59C7F7]">b</span>
             <span className="text-[#5D59FF]">b</span>
             <span className="text-[#A859FF]">l</span>
-            <span className="text-white">.io</span>
-            <span className="text-[#FF5959] ml-1">!</span>
+            <span className="text-[#FF5959]">e</span>
+            <span className="text-white">.ai</span>
+            <span className="text-[#FF9D47] ml-1">!</span>
           </div>
           {/* AVATAR STRIP */}
           {gameState === 'AUTH' && (
