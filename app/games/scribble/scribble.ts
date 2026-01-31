@@ -27,7 +27,7 @@ export async function analyzeDrawing(
   console.log('Target word:', targetWord);
   console.log('Image data length:', imageBase64.length);
   console.log('Image preview:', imageBase64.substring(0, 50) + '...');
-  
+
   try {
     if (!process.env.GROQ_API_KEY) {
       console.error('❌ No API key found');
@@ -41,7 +41,7 @@ export async function analyzeDrawing(
 
     console.log('✓ API key found, calling Groq...');
 
-    // Call Groq Vision API with Llama 3.2 Vision (90B has vision capabilities)
+    // Call Groq Vision API
     const response = await groq.chat.completions.create({
       model: 'meta-llama/llama-4-scout-17b-16e-instruct',
       messages: [
@@ -103,7 +103,7 @@ What is this drawing?`,
     };
   } catch (error: any) {
     console.error('Groq API error:', error);
-    
+
     // Check if it's a rate limit error
     if (error.status === 429) {
       return {

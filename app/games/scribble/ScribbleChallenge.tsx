@@ -58,13 +58,18 @@ export default function ScribbleChallenge() {
   const gameStateRef = useRef<GameState>(gameState);
   const shieldActiveRef = useRef(shieldActive);
   const analyzingRef = useRef(analyzing);
+
   const targetWordRef = useRef(targetWord);
+  const playerDataRef = useRef(playerData); // Refs for stale closures
 
   // New UI state
   const [selectedColor, setSelectedColor] = useState('#000000');
   const [brushSize, setBrushSize] = useState(4);
   const [avatarIndex, setAvatarIndex] = useState(0);
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
+  const [currentRound, setCurrentRound] = useState(1);
+  const [roundsWon, setRoundsWon] = useState(0);
+  const [usedWords, setUsedWords] = useState<Set<string>>(new Set());
   const [chatInput, setChatInput] = useState('');
   const [players, setPlayers] = useState<Player[]>([
     { id: 1, name: 'You', score: 0, avatar: '👤' },
@@ -116,6 +121,11 @@ export default function ScribbleChallenge() {
     }
   };
 
+  // Sync playerData ref
+  useEffect(() => {
+    playerDataRef.current = playerData;
+  }, [playerData]);
+
   const handlePrevAvatar = () => {
     setAvatarIndex((prev) => (prev === 0 ? AVATARS.length - 1 : prev - 1));
   };
@@ -159,9 +169,19 @@ export default function ScribbleChallenge() {
     setPlayerData({ ...playerData, stonks: playerData.stonks - 20 });
     setLoading(false);
 
+    // Initialize Round State
+    setCurrentRound(1);
+    setRoundsWon(0);
+    setRoundsWon(0);
+    setUsedWords(new Set());
+    setChatMessages([]); // Clear chat for new game
+
+    // Update Player List with Avatar
+    setPlayers(prev => prev.map(p => p.id === 1 ? { ...p, avatar: playerData.avatar || '👤', name: playerData.name || 'You' } : p));
+
     // Generate 3 random word options
-    const options = [getRandomWord(), getRandomWord(), getRandomWord()];
-    setWordOptions(options);
+    const newOptions = [getRandomWord(), getRandomWord(), getRandomWord()];
+    setWordOptions(newOptions);
     setSelectionTimeLeft(10);
     setGameState('wordSelection');
   };
@@ -174,25 +194,30 @@ export default function ScribbleChallenge() {
     setTimeLeft(30);
     setSelectionTimeLeft(10);
     setWordOptions([]);
+    setSelectionTimeLeft(10);
+    setWordOptions([]);
     setCurrentAiGuess('');
+    setChatMessages([]);
     stopGame();
   };
 
   // Handle game end and award stonks
   const handleGameEnd = async (result: 'won' | 'lost') => {
-    if (!playerData || !uid) return;
+    const currentPlayerData = playerDataRef.current; // Use ref to get latest state
+    if (!currentPlayerData || !uid) return;
 
-    const reward = result === 'won' ? 35 : 0;
+    // SCORING UPDATE: 10 Gems per round win instead of 35
+    const reward = result === 'won' ? 10 : 0;
 
     if (result === 'won') {
       // Update stonks in database
       await supabase
         .from('players')
-        .update({ stonks: playerData.stonks + reward })
+        .update({ stonks: currentPlayerData.stonks + reward })
         .eq('uid', uid);
 
-      // Update local state
-      setPlayerData({ ...playerData, stonks: playerData.stonks + reward });
+      // Update local state - Functional update for safety mixed with ref reading
+      setPlayerData(prev => prev ? ({ ...prev, stonks: prev.stonks + reward }) : null);
 
       // Log win
       await supabase.from('game_logs').insert({
@@ -210,6 +235,43 @@ export default function ScribbleChallenge() {
         stonks_change: 0
       });
     }
+
+    if (result === 'won') {
+      setRoundsWon(prev => {
+        const newCount = prev + 1;
+        // Check for bonus (Perfect Game) - using local variable for immediate check
+        if (currentRound === 3 && newCount === 3) {
+          // Apply bonus async
+          supabase
+            .from('players')
+            .update({ stonks: currentPlayerData.stonks + reward + 5 }) // Update DB with total
+            .eq('uid', uid)
+            .then(() => {
+              setPlayerData(p => p ? ({ ...p, stonks: p.stonks + 5 }) : null);
+            });
+        }
+        return newCount;
+      });
+    }
+  };
+
+  const nextRound = () => {
+    setCurrentRound(prev => prev + 1);
+
+    // Generate unique words
+    const options: string[] = [];
+    while (options.length < 3) {
+      const word = getRandomWord();
+      if (!usedWords.has(word) && !options.includes(word)) {
+        options.push(word);
+      }
+    }
+    setWordOptions(options);
+
+    setSelectionTimeLeft(10);
+    setTimeLeft(30);
+    setGameState('wordSelection');
+    setChatMessages([]);
   };
 
   // Auto-scroll chat
@@ -470,7 +532,7 @@ export default function ScribbleChallenge() {
       }
 
       analyzeCurrentDrawing();
-    }, 1500);
+    }, 2000); // Slower polling (2s) per user request
 
     pollingIntervalRef.current = intervalId;
     console.log('✅ Polling interval started with ID:', intervalId);
@@ -583,6 +645,7 @@ export default function ScribbleChallenge() {
   // Handle word selection
   const selectWord = (word: string) => {
     console.log('🎯 Word selected:', word);
+    setUsedWords(prev => new Set(prev).add(word));
     // Start game immediately with selected word
     stopGame();
     setTargetWord(word);
@@ -833,7 +896,7 @@ export default function ScribbleChallenge() {
                   <span className="font-black text-xl text-[#0E3359] relative z-10">{timeLeft}</span>
                 </div>
                 <div className="text-xl font-bold text-[#0E3359]">
-                  Round 1 of 1
+                  Round {currentRound} of 3
                 </div>
               </div>
 
@@ -841,12 +904,9 @@ export default function ScribbleChallenge() {
               <div className="flex flex-col items-center">
                 {gameState === 'playing' ? (
                   <>
-                    <div className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-1">GUESS THIS</div>
-                    <div className="font-mono text-2xl font-black text-[#0E3359] tracking-widest leading-none">
-                      {targetWord.split('').map((_, i) => (
-                        <span key={i} className="border-b-4 border-[#0E3359] mx-1 inline-block w-4 h-6"></span>
-                      ))}
-                      <span className="ml-2 text-sm text-gray-400 font-sans tracking-normal">{targetWord.length}</span>
+                    <div className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-1">DRAW THIS</div>
+                    <div className="font-mono text-3xl font-black text-[#0E3359] tracking-widest leading-none">
+                      {targetWord.toUpperCase()}
                     </div>
                   </>
                 ) : (
@@ -925,13 +985,26 @@ export default function ScribbleChallenge() {
                             </div>
                             <div>
                               <div className="text-gray-400 text-xs font-bold uppercase">Reward</div>
-                              <div className="font-bold text-lg text-[#53E07D]">{gameState === 'won' ? '+35' : '0'} 💎</div>
+                              <div className="font-bold text-lg text-[#53E07D]">
+                                {gameState === 'won' ? (
+                                  currentRound === 3 && roundsWon + (gameState === 'won' ? 1 : 0) === 3
+                                    ? '+15 (Bonus!)'
+                                    : '+10'
+                                ) : '0'} 💎
+                              </div>
                             </div>
                           </div>
                         </div>
-                        <button onClick={resetGame} className="bg-[#3BA4E8] text-white px-8 py-3 rounded-lg font-black text-xl hover:bg-[#2c8bc7] transition-colors shadow-[0px_4px_0px_#1a6ca0] active:translate-y-[2px] active:shadow-none">
-                          PLAY AGAIN
-                        </button>
+
+                        {currentRound < 3 ? (
+                          <button onClick={nextRound} className="bg-[#3BA4E8] text-white px-8 py-3 rounded-lg font-black text-xl hover:bg-[#2c8bc7] transition-colors shadow-[0px_4px_0px_#1a6ca0] active:translate-y-[2px] active:shadow-none">
+                            NEXT ROUND ➡
+                          </button>
+                        ) : (
+                          <button onClick={resetGame} className="bg-[#53E07D] text-white px-8 py-3 rounded-lg font-black text-xl hover:bg-[#46c96b] transition-colors shadow-[0px_4px_0px_#2b964d] active:translate-y-[2px] active:shadow-none">
+                            FINISH GAME 🏁
+                          </button>
+                        )}
                       </div>
                     )}
 
@@ -979,14 +1052,19 @@ export default function ScribbleChallenge() {
                 </div>
 
                 <form onSubmit={handleChatSubmit} className="p-2 bg-white border-t border-[#e0e0e0]">
-                  <input
-                    type="text"
-                    className="w-full px-3 py-2 rounded border-2 border-gray-200 focus:outline-none focus:border-[#3BA4E8] text-sm font-bold placeholder-gray-400"
-                    placeholder="Type your guess here..."
-                    value={chatInput}
-                    onChange={(e) => setChatInput(e.target.value)}
-                    maxLength={100}
-                  />
+                  <div className="flex gap-2">
+                    <input
+                      type="text"
+                      className="flex-1 px-3 py-2 rounded border-2 border-gray-200 bg-gray-100 text-gray-500 cursor-not-allowed text-sm font-bold"
+                      placeholder="Chat is disabled while drawing"
+                      value={chatInput}
+                      onChange={(e) => setChatInput(e.target.value)}
+                      disabled={true}
+                    />
+                    <button type="submit" className="bg-gray-300 text-white p-2 rounded cursor-not-allowed" disabled={true}>
+                      <Send className="w-5 h-5" />
+                    </button>
+                  </div>
                 </form>
               </div>
 
