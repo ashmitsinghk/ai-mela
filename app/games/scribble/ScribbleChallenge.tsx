@@ -9,9 +9,11 @@ import { useToast } from '@/contexts/ToastContext';
 import { GAME_CONSTANTS } from '@/utils/game-constants';
 import StandardAuth from '@/components/game-ui/StandardAuth';
 import StandardBet from '@/components/game-ui/StandardBet';
-import { Loader2, Palette, Send, Eraser, Trash2, User, Play, Clock, Trophy } from 'lucide-react';
+
+import { Loader2, Palette, Send, Eraser, Trash2, User, Play, Clock, Trophy, PaintBucket } from 'lucide-react';
 
 type GameState = 'AUTH' | 'BET' | 'wordSelection' | 'idle' | 'playing' | 'won' | 'lost';
+type Tool = 'brush' | 'bucket' | 'eraser';
 
 interface ChatMessage {
   id: number;
@@ -78,6 +80,7 @@ export default function ScribbleChallenge() {
   // New UI state
   const [selectedColor, setSelectedColor] = useState('#000000');
   const [brushSize, setBrushSize] = useState(4);
+  const [currentTool, setCurrentTool] = useState<Tool>('brush');
   const [avatarIndex, setAvatarIndex] = useState(0);
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
   const [currentRound, setCurrentRound] = useState(1);
@@ -220,8 +223,8 @@ export default function ScribbleChallenge() {
     const currentPlayerData = playerDataRef.current; // Use ref to get latest state
     if (!currentPlayerData || !uid) return;
 
-    // SCORING UPDATE: 10 Gems per round win instead of 35
-    const reward = result === 'won' ? 10 : 0;
+    // SCORING UPDATE: 15 Gems per round win instead of 10
+    const reward = result === 'won' ? 15 : 0;
 
     if (result === 'won') {
       // Update stonks in database
@@ -251,21 +254,7 @@ export default function ScribbleChallenge() {
     }
 
     if (result === 'won') {
-      setRoundsWon(prev => {
-        const newCount = prev + 1;
-        // Check for bonus (Perfect Game) - using local variable for immediate check
-        if (currentRound === 3 && newCount === 3) {
-          // Apply bonus async
-          supabase
-            .from('players')
-            .update({ stonks: currentPlayerData.stonks + reward + 5 }) // Update DB with total
-            .eq('uid', uid)
-            .then(() => {
-              setPlayerData(p => p ? ({ ...p, stonks: p.stonks + 5 }) : null);
-            });
-        }
-        return newCount;
-      });
+      setRoundsWon(prev => prev + 1);
     }
   };
 
@@ -322,17 +311,30 @@ export default function ScribbleChallenge() {
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
 
-    ctx.strokeStyle = selectedColor;
+    ctx.strokeStyle = currentTool === 'eraser' ? '#FFFFFF' : selectedColor;
     ctx.lineWidth = brushSize;
-  }, [selectedColor, brushSize]);
+  }, [selectedColor, brushSize, currentTool]);
 
   // Export canvas to optimized base64
   const exportToBlob = useCallback(async (): Promise<string> => {
     const canvas = canvasRef.current;
     if (!canvas) return '';
 
+    // Create a temporary canvas to ensure white background
+    const tempCanvas = document.createElement('canvas');
+    tempCanvas.width = canvas.width;
+    tempCanvas.height = canvas.height;
+    const ctx = tempCanvas.getContext('2d');
+    if (!ctx) return '';
+
+    // Fill white
+    ctx.fillStyle = '#FFFFFF';
+    ctx.fillRect(0, 0, tempCanvas.width, tempCanvas.height);
+    // Draw original canvas over it
+    ctx.drawImage(canvas, 0, 0);
+
     return new Promise((resolve) => {
-      canvas.toBlob(
+      tempCanvas.toBlob(
         (blob) => {
           if (!blob) {
             resolve('');
@@ -350,17 +352,91 @@ export default function ScribbleChallenge() {
     });
   }, []);
 
+  // Helper to get pixel color
+  const getPixelColor = (imgData: ImageData, x: number, y: number) => {
+    const i = (y * imgData.width + x) * 4;
+    return {
+      r: imgData.data[i],
+      g: imgData.data[i + 1],
+      b: imgData.data[i + 2],
+      a: imgData.data[i + 3]
+    };
+  };
+
+  // Helper to set pixel color
+  const setPixelColor = (imgData: ImageData, x: number, y: number, r: number, g: number, b: number, a: number) => {
+    const i = (y * imgData.width + x) * 4;
+    imgData.data[i] = r;
+    imgData.data[i + 1] = g;
+    imgData.data[i + 2] = b;
+    imgData.data[i + 3] = a;
+  };
+
+  // Stack-based flood fill to avoid recursion limits
+  const floodFill = (startX: number, startY: number, fillColorStr: string) => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+
+    // Parse fill color
+    let tr = 0, tg = 0, tb = 0;
+    if (fillColorStr.startsWith('#')) {
+      const hex = fillColorStr.substring(1);
+      tr = parseInt(hex.substring(0, 2), 16);
+      tg = parseInt(hex.substring(2, 4), 16);
+      tb = parseInt(hex.substring(4, 6), 16);
+    }
+
+    const width = canvas.width;
+    const height = canvas.height;
+    const imgData = ctx.getImageData(0, 0, width, height);
+
+    const startColor = getPixelColor(imgData, startX, startY);
+
+    // Don't fill if color is same
+    if (startColor.r === tr && startColor.g === tg && startColor.b === tb) return;
+
+    const stack = [[startX, startY]];
+
+    while (stack.length > 0) {
+      const [x, y] = stack.pop()!;
+
+      const currentColor = getPixelColor(imgData, x, y);
+      if (
+        x >= 0 && x < width && y >= 0 && y < height &&
+        currentColor.r === startColor.r &&
+        currentColor.g === startColor.g &&
+        currentColor.b === startColor.b
+      ) {
+        setPixelColor(imgData, x, y, tr, tg, tb, 255);
+
+        stack.push([x + 1, y]);
+        stack.push([x - 1, y]);
+        stack.push([x, y + 1]);
+        stack.push([x, y - 1]);
+      }
+    }
+
+    ctx.putImageData(imgData, 0, 0);
+  };
+
   // Drawing handlers
   const startDrawing = (e: React.MouseEvent<HTMLCanvasElement>) => {
     const canvas = canvasRef.current;
     if (!canvas || gameState !== 'playing') return;
 
+    const rect = canvas.getBoundingClientRect();
+    const x = Math.floor(((e.clientX - rect.left) * canvas.width) / rect.width);
+    const y = Math.floor(((e.clientY - rect.top) * canvas.height) / rect.height);
+
+    if (currentTool === 'bucket') {
+      floodFill(x, y, selectedColor);
+      return;
+    }
+
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
-
-    const rect = canvas.getBoundingClientRect();
-    const x = ((e.clientX - rect.left) * canvas.width) / rect.width;
-    const y = ((e.clientY - rect.top) * canvas.height) / rect.height;
 
     ctx.beginPath();
     ctx.moveTo(x, y);
@@ -748,14 +824,31 @@ export default function ScribbleChallenge() {
                   <span className="text-black">.ai</span>
                 </div>
 
-                <div className="flex gap-2 justify-center mt-4 opacity-90">
-                  {['😤', '😎', '🤪', '🤓', '🤖', '👽', '👻', '🤡'].map((emoji, i) => (
-                    <div key={i} className={`w-10 h-10 rounded-full flex items-center justify-center text-2xl border-2 border-black ${[
-                      'bg-[#FF5959]', 'bg-[#FF9D47]', 'bg-[#FFE647]', 'bg-[#65E068]', 'bg-[#59C7F7]', 'bg-[#5D59FF]', 'bg-[#A859FF]', 'bg-[#FF8FAB]'
-                    ][i]}`}>
-                      {emoji}
+                <div className="flex flex-col items-center gap-2 mt-4">
+                  <div className="flex items-center gap-4 bg-white/20 px-6 py-3 rounded-full backdrop-blur-sm border-2 border-white/30">
+                    <button
+                      onClick={handlePrevAvatar}
+                      className="w-10 h-10 flex items-center justify-center bg-black/20 hover:bg-black/40 text-white rounded-full transition-all text-xl"
+                    >
+                      ←
+                    </button>
+                    <div className="flex flex-col items-center min-w-[100px]">
+                      <span className="text-6xl drop-shadow-lg mb-1">{AVATARS[avatarIndex]}</span>
+                      <span className="text-white text-xs font-bold uppercase tracking-widest opacity-80">Avatar</span>
                     </div>
-                  ))}
+                    <button
+                      onClick={handleNextAvatar}
+                      className="w-10 h-10 flex items-center justify-center bg-black/20 hover:bg-black/40 text-white rounded-full transition-all text-xl"
+                    >
+                      →
+                    </button>
+                  </div>
+                  <button
+                    onClick={randomizeAvatar}
+                    className="text-white/60 text-xs hover:text-white transition-colors underline decoration-dotted"
+                  >
+                    Randomize
+                  </button>
                 </div>
               </>
             }
@@ -770,6 +863,7 @@ export default function ScribbleChallenge() {
         {gameState === 'BET' && playerData && (
           <StandardBet
             playerData={playerData}
+            uid={uid}
             entryFee={GAME_CONSTANTS.ENTRY_FEE}
             onPlay={payAndStart}
             onCancel={resetGame}
@@ -781,10 +875,11 @@ export default function ScribbleChallenge() {
               <h2 className="text-2xl font-black text-[#0E3359] mb-4 uppercase">Ready to Draw?</h2>
             }
             instructions={
-              <div className="flex justify-between items-center text-green-600">
-                <span className="font-bold">Entry Prize</span>
-                <span className="font-black text-xl">+30 💎</span>
-              </div>
+              <ul className="space-y-2 text-sm text-gray-700 font-mono text-left">
+                <li>• Draw the word clearly for the AI to guess.</li>
+                <li>• 15 Stonks for each correct drawing.</li>
+                <li>• 3 Rounds total. Maximum reward: 45 Stonks.</li>
+              </ul>
             }
           />
         )}
@@ -1032,7 +1127,30 @@ export default function ScribbleChallenge() {
               </div>
 
               {/* Tools */}
+              {/* Tools */}
               <div className="flex items-center gap-2">
+                <button
+                  onClick={() => setCurrentTool('brush')}
+                  className={`p-2 rounded transition-all ${currentTool === 'brush' ? 'bg-blue-100 text-blue-600 ring-2 ring-blue-300' : 'hover:bg-gray-100 text-gray-500'}`}
+                  title="Brush"
+                >
+                  <Palette className="w-6 h-6" />
+                </button>
+                <button
+                  onClick={() => setCurrentTool('bucket')}
+                  className={`p-2 rounded transition-all ${currentTool === 'bucket' ? 'bg-blue-100 text-blue-600 ring-2 ring-blue-300' : 'hover:bg-gray-100 text-gray-500'}`}
+                  title="Flood Fill"
+                >
+                  <PaintBucket className="w-6 h-6" />
+                </button>
+                <button
+                  onClick={() => setCurrentTool('eraser')}
+                  className={`p-2 rounded transition-all ${currentTool === 'eraser' ? 'bg-blue-100 text-blue-600 ring-2 ring-blue-300' : 'hover:bg-gray-100 text-gray-500'}`}
+                  title="Eraser"
+                >
+                  <Eraser className="w-6 h-6" />
+                </button>
+                <div className="w-px h-8 bg-gray-300 mx-1"></div>
                 <button onClick={clearCanvas} className="p-2 hover:bg-red-100 text-gray-500 hover:text-red-500 rounded transition-colors" title="Clear">
                   <Trash2 className="w-6 h-6" />
                 </button>

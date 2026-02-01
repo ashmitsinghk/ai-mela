@@ -26,9 +26,8 @@ export default function DeepfakeDetective() {
     gameOver: false,
     selectedSide: null,
     showFeedback: false,
+    timeLeft: 15,
   });
-
-
 
   const [usedPairIds, setUsedPairIds] = useState<number[]>([]);
 
@@ -44,15 +43,65 @@ export default function DeepfakeDetective() {
     };
   }, []);
 
+  // Timer Countdown
+  useEffect(() => {
+    let timer: NodeJS.Timeout;
+
+    if (gamePhase === 'PLAYING' && !gameState.showFeedback && !gameState.gameOver && gameState.currentRoundData) {
+      timer = setInterval(() => {
+        setGameState(prev => {
+          if (prev.timeLeft <= 1) {
+            clearInterval(timer);
+            handleTimeout();
+            return { ...prev, timeLeft: 0 };
+          }
+          return { ...prev, timeLeft: prev.timeLeft - 1 };
+        });
+      }, 1000);
+    }
+
+    return () => {
+      if (timer) clearInterval(timer);
+    };
+  }, [gamePhase, gameState.showFeedback, gameState.gameOver, gameState.currentRoundData]);
+
+  // Handle Timeout (Time's Up)
+  const handleTimeout = () => {
+    if (gameState.showFeedback || gameState.gameOver) return;
+
+    // Time's up is a loss for this round
+    setGameState(prev => ({
+      ...prev,
+      selectedSide: null, // No selection made
+      showFeedback: true,
+      // stonks do not increase
+    }));
+
+    // Move to next round after 2 seconds
+    nextRoundTimerRef.current = setTimeout(() => {
+      if (gameState.round >= 5) {
+        endGame();
+      } else {
+        setGameState(prev => ({
+          ...prev,
+          round: prev.round + 1,
+          currentRoundData: generateRound(),
+          selectedSide: null,
+          showFeedback: false,
+          timeLeft: 15, // Reset timer
+        }));
+      }
+    }, 2000);
+  };
+
   // Auth: Check player
-  const checkPlayer = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const checkPlayer = async (uidToCheck: string) => {
     setAuthLoading(true);
     try {
       const { data, error } = await supabase
         .from('players')
         .select('name, stonks')
-        .eq('uid', uid)
+        .eq('uid', uidToCheck)
         .single();
 
       if (error || !data) {
@@ -110,6 +159,7 @@ export default function DeepfakeDetective() {
       gameOver: false,
       selectedSide: null,
       showFeedback: false,
+      timeLeft: 15,
     });
   };
 
@@ -152,6 +202,7 @@ export default function DeepfakeDetective() {
       gameOver: false,
       selectedSide: null,
       showFeedback: false,
+      timeLeft: 15,
     });
   };
 
@@ -175,7 +226,7 @@ export default function DeepfakeDetective() {
       // Move to next round after 2 seconds
       nextRoundTimerRef.current = setTimeout(() => {
         if (gameState.round >= 5) {
-          endGame();
+          endGame(newStonks);
         } else {
           setGameState(prev => ({
             ...prev,
@@ -183,6 +234,7 @@ export default function DeepfakeDetective() {
             currentRoundData: generateRound(),
             selectedSide: null,
             showFeedback: false,
+            timeLeft: 15,
           }));
         }
       }, 2000);
@@ -190,12 +242,12 @@ export default function DeepfakeDetective() {
   };
 
   // End game and update stonks
-  const endGame = async () => {
+  const endGame = async (finalStonks?: number) => {
     setGameState(prev => ({ ...prev, gameOver: true }));
     setGamePhase('RESULT');
 
     // Calculate winnings
-    const totalStonks = gameState.stonks;
+    const totalStonks = finalStonks !== undefined ? finalStonks : gameState.stonks;
 
     if (totalStonks > 0 && uid) {
       // Add winnings to player's stonks
@@ -229,6 +281,7 @@ export default function DeepfakeDetective() {
       gameOver: false,
       selectedSide: null,
       showFeedback: false,
+      timeLeft: 15,
     });
   };
 
@@ -243,7 +296,10 @@ export default function DeepfakeDetective() {
   if (gamePhase === 'AUTH') {
     return (
       <StandardAuth
-        onVerify={(id) => { setUid(id); checkPlayer({ preventDefault: () => { } } as any); }}
+        onVerify={(id) => {
+          setUid(id);
+          checkPlayer(id);
+        }}
         loading={authLoading}
         title={
           <h1 className="text-4xl font-black uppercase text-center">
@@ -274,6 +330,7 @@ export default function DeepfakeDetective() {
     return (
       <StandardBet
         playerData={playerData}
+        uid={uid}
         entryFee={GAME_CONSTANTS.ENTRY_FEE}
         onPlay={payAndStart}
         onCancel={resetToAuth}
@@ -407,6 +464,13 @@ export default function DeepfakeDetective() {
               <span className="text-xl font-bold uppercase">Round: {gameState.round}/5</span>
             </div>
 
+            <div className={`border-4 border-black px-4 py-2 shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] ${gameState.timeLeft <= 5 ? 'bg-red-500 text-white animate-pulse' : 'bg-white text-black'
+              }`}>
+              <span className="text-xl font-black uppercase">
+                Time: {gameState.timeLeft}s
+              </span>
+            </div>
+
             <div className="bg-[#22C55E] border-4 border-black px-4 py-2 shadow-[4px_4px_0px_0px_rgba(0,0,0,1)]">
               <span className="text-xl font-black text-white uppercase">
                 {gameState.stonks} STONKS
@@ -414,21 +478,22 @@ export default function DeepfakeDetective() {
             </div>
           </div>
         </div>
+      </div>
 
-        {/* Main Game Area */}
-        <div className="max-w-6xl mx-auto">
-          <div className="bg-orange-100 border-4 border-black shadow-[8px_8px_0px_0px_rgba(0,0,0,1)] p-6 mb-6">
-            <p className="text-2xl md:text-3xl font-black uppercase text-center mb-6">
-              🕵️ WHICH IMAGE IS THE DEEPFAKE?
-            </p>
+      {/* Main Game Area */}
+      <div className="relative z-10 max-w-6xl mx-auto">
+        <div className="bg-orange-100 border-4 border-black shadow-[8px_8px_0px_0px_rgba(0,0,0,1)] p-6 mb-6">
+          <p className="text-2xl md:text-3xl font-black uppercase text-center mb-6">
+            🕵️ WHICH IMAGE IS THE DEEPFAKE?
+          </p>
 
-            {/* Image Grid */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              {/* Left Image */}
-              <button
-                onClick={() => handleImageClick('left')}
-                disabled={gameState.showFeedback}
-                className={`
+          {/* Image Grid */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            {/* Left Image */}
+            <button
+              onClick={() => handleImageClick('left')}
+              disabled={gameState.showFeedback}
+              className={`
                   relative bg-white border-4 border-black p-4
                   transition-all cursor-pointer
                   ${!gameState.showFeedback ? 'shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] hover:shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] hover:translate-x-[2px] hover:translate-y-[2px]' : ''}
@@ -438,32 +503,32 @@ export default function DeepfakeDetective() {
                   ${gameState.showFeedback && isLeftCorrect && !selectedLeft ? 'border-green-600 animate-pulse' : ''}
                   ${gameState.showFeedback ? 'cursor-not-allowed' : ''}
                 `}
-              >
-                <div className="relative aspect-square mb-4">
-                  <Image
-                    src={leftImage}
-                    alt="Option 1"
-                    fill
-                    className="object-cover"
-                    priority
-                  />
-                </div>
-                <p className="text-xl font-black uppercase text-center">
-                  IMAGE A
-                  {gameState.showFeedback && isLeftCorrect && (
-                    <span className="ml-2 text-green-600">✓ FAKE</span>
-                  )}
-                  {gameState.showFeedback && selectedLeft && !isLeftCorrect && (
-                    <span className="ml-2 text-red-600">✗</span>
-                  )}
-                </p>
-              </button>
+            >
+              <div className="relative aspect-square mb-4">
+                <Image
+                  src={leftImage}
+                  alt="Option 1"
+                  fill
+                  className="object-cover"
+                  priority
+                />
+              </div>
+              <p className="text-xl font-black uppercase text-center">
+                IMAGE A
+                {gameState.showFeedback && isLeftCorrect && (
+                  <span className="ml-2 text-green-600">✓ FAKE</span>
+                )}
+                {gameState.showFeedback && selectedLeft && !isLeftCorrect && (
+                  <span className="ml-2 text-red-600">✗</span>
+                )}
+              </p>
+            </button>
 
-              {/* Right Image */}
-              <button
-                onClick={() => handleImageClick('right')}
-                disabled={gameState.showFeedback}
-                className={`
+            {/* Right Image */}
+            <button
+              onClick={() => handleImageClick('right')}
+              disabled={gameState.showFeedback}
+              className={`
                   relative bg-white border-4 border-black p-4
                   transition-all cursor-pointer
                   ${!gameState.showFeedback ? 'shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] hover:shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] hover:translate-x-[2px] hover:translate-y-[2px]' : ''}
@@ -473,43 +538,42 @@ export default function DeepfakeDetective() {
                   ${gameState.showFeedback && isRightCorrect && !selectedRight ? 'border-green-600 animate-pulse' : ''}
                   ${gameState.showFeedback ? 'cursor-not-allowed' : ''}
                 `}
-              >
-                <div className="relative aspect-square mb-4">
-                  <Image
-                    src={rightImage}
-                    alt="Option 2"
-                    fill
-                    className="object-cover"
-                    priority
-                  />
-                </div>
-                <p className="text-xl font-black uppercase text-center">
-                  IMAGE B
-                  {gameState.showFeedback && isRightCorrect && (
-                    <span className="ml-2 text-green-600">✓ FAKE</span>
-                  )}
-                  {gameState.showFeedback && selectedRight && !isRightCorrect && (
-                    <span className="ml-2 text-red-600">✗</span>
-                  )}
-                </p>
-              </button>
+            >
+              <div className="relative aspect-square mb-4">
+                <Image
+                  src={rightImage}
+                  alt="Option 2"
+                  fill
+                  className="object-cover"
+                  priority
+                />
+              </div>
+              <p className="text-xl font-black uppercase text-center">
+                IMAGE B
+                {gameState.showFeedback && isRightCorrect && (
+                  <span className="ml-2 text-green-600">✓ FAKE</span>
+                )}
+                {gameState.showFeedback && selectedRight && !isRightCorrect && (
+                  <span className="ml-2 text-red-600">✗</span>
+                )}
+              </p>
+            </button>
+          </div>
+        </div>
+
+        {/* Feedback Message */}
+        {gameState.showFeedback && (
+          <div className="text-center">
+            <div className={`inline-block px-6 py-3 border-4 border-black font-black text-2xl uppercase ${((selectedLeft && isLeftCorrect) || (selectedRight && isRightCorrect))
+              ? 'bg-green-500 text-white'
+              : 'bg-red-500 text-white'
+              }`}>
+              {((selectedLeft && isLeftCorrect) || (selectedRight && isRightCorrect))
+                ? '🎉 CORRECT! +8 STONKS'
+                : '❌ WRONG! THAT WAS REAL'}
             </div>
           </div>
-
-          {/* Feedback Message */}
-          {gameState.showFeedback && (
-            <div className="text-center">
-              <div className={`inline-block px-6 py-3 border-4 border-black font-black text-2xl uppercase ${((selectedLeft && isLeftCorrect) || (selectedRight && isRightCorrect))
-                ? 'bg-green-500 text-white'
-                : 'bg-red-500 text-white'
-                }`}>
-                {((selectedLeft && isLeftCorrect) || (selectedRight && isRightCorrect))
-                  ? '🎉 CORRECT! +8 STONKS'
-                  : '❌ WRONG! THAT WAS REAL'}
-              </div>
-            </div>
-          )}
-        </div>
+        )}
       </div>
     </div>
   );

@@ -314,6 +314,7 @@ export default function HeadlinesGame() {
         {gameState === 'BET' && playerData && (
           <StandardBet
             playerData={playerData}
+            uid={uid}
             entryFee={GAME_CONSTANTS.ENTRY_FEE}
             onPlay={payAndStart}
             onCancel={resetGame}

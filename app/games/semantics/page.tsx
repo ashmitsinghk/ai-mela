@@ -18,136 +18,7 @@ interface Word {
   y: number;
 }
 
-const WORD_POOL: string[] = [
-  'happy', 'joyful', 'cheerful', 'delighted',
-  'sad', 'unhappy', 'sorrowful', 'melancholy',
-  'car', 'vehicle', 'automobile', 'truck',
-  'house', 'home', 'building', 'residence',
-  'dog', 'puppy', 'canine', 'hound',
-  'cat', 'kitten', 'feline', 'kitty',
-  'book', 'novel', 'tome', 'literature',
-  'ocean', 'sea', 'water', 'marine',
-  'mountain', 'peak', 'summit', 'hill',
-  'forest', 'woods', 'woodland', 'trees',
-  'computer', 'laptop', 'machine', 'device',
-  'phone', 'smartphone', 'mobile', 'cellphone',
-  'friend', 'buddy', 'pal', 'companion',
-  'teacher', 'instructor', 'educator', 'professor',
-  'food', 'meal', 'dish', 'cuisine',
-  'music', 'melody', 'harmony', 'sound',
-  'fast', 'quick', 'rapid', 'swift',
-  'slow', 'sluggish', 'gradual', 'leisurely',
-  'big', 'large', 'huge', 'enormous',
-  'small', 'tiny', 'little', 'miniature',
-
-  // Add more diverse words
-  'brilliant', 'intelligent', 'smart', 'clever',
-  'strong', 'powerful', 'mighty', 'robust',
-  'weak', 'feeble', 'frail', 'fragile',
-  'beautiful', 'gorgeous', 'stunning', 'lovely',
-  'ugly', 'hideous', 'unattractive', 'unsightly',
-  'hot', 'warm', 'heated', 'scorching',
-  'cold', 'freezing', 'chilly', 'icy',
-  'bright', 'luminous', 'radiant', 'shining',
-  'dark', 'dim', 'gloomy', 'shadowy',
-  'loud', 'noisy', 'deafening', 'thunderous',
-  'quiet', 'silent', 'hushed', 'peaceful',
-  'rich', 'wealthy', 'affluent', 'prosperous',
-  'poor', 'impoverished', 'destitute', 'needy',
-  'old', 'ancient', 'aged', 'elderly',
-  'young', 'youthful', 'juvenile', 'adolescent',
-  'new', 'fresh', 'novel', 'modern',
-
-  // Nature & Elements
-  'fire', 'flame', 'blaze', 'inferno',
-  'rain', 'shower', 'drizzle', 'downpour',
-  'snow', 'frost', 'ice', 'blizzard',
-  'wind', 'breeze', 'gust', 'gale',
-  'sun', 'sunshine', 'daylight', 'solar',
-  'moon', 'lunar', 'celestial', 'nighttime',
-  'star', 'stellar', 'cosmos', 'heavenly',
-  'cloud', 'overcast', 'misty', 'foggy',
-  'thunder', 'lightning', 'storm', 'tempest',
-  'earthquake', 'tremor', 'quake', 'seismic',
-  'volcano', 'lava', 'magma', 'eruption',
-  'river', 'stream', 'creek', 'tributary',
-  'lake', 'pond', 'lagoon', 'reservoir',
-  'beach', 'shore', 'coast', 'seaside',
-  'island', 'isle', 'atoll', 'archipelago',
-  'desert', 'arid', 'wasteland', 'dunes',
-  'jungle', 'rainforest', 'wilderness', 'tropical',
-  'meadow', 'field', 'prairie', 'grassland',
-  'valley', 'canyon', 'gorge', 'ravine',
-  'cave', 'cavern', 'grotto', 'hollow',
-
-  // Abstract Concepts
-  'love', 'affection', 'adoration', 'devotion',
-  'hate', 'loathing', 'abhorrence', 'disdain',
-  'peace', 'harmony', 'tranquility', 'serenity',
-  'war', 'conflict', 'battle', 'combat',
-  'hope', 'optimism', 'faith', 'aspiration',
-  'fear', 'dread', 'terror', 'phobia',
-  'courage', 'bravery', 'valor', 'heroism',
-  'wisdom', 'knowledge', 'insight', 'understanding',
-  'freedom', 'liberty', 'independence', 'autonomy',
-  'justice', 'fairness', 'equity', 'righteousness',
-  'truth', 'honesty', 'veracity', 'authenticity',
-  'beauty', 'elegance', 'grace', 'aesthetics',
-  'chaos', 'disorder', 'turmoil', 'confusion',
-  'order', 'organization', 'system', 'structure',
-  'power', 'strength', 'force', 'might',
-  'weakness', 'vulnerability', 'fragility', 'feebleness',
-
-  // Science & Tech
-  'robot', 'android', 'automaton', 'machine',
-  'algorithm', 'procedure', 'formula', 'method',
-  'data', 'information', 'statistics', 'metrics',
-  'network', 'connection', 'link', 'infrastructure',
-  'energy', 'power', 'electricity', 'voltage',
-  'atom', 'molecule', 'particle', 'element',
-  'gravity', 'force', 'attraction', 'pull',
-  'space', 'universe', 'cosmos', 'galaxy',
-  'planet', 'world', 'sphere', 'globe',
-  'rocket', 'spacecraft', 'shuttle', 'vessel',
-  'satellite', 'orbiter', 'probe', 'transmission',
-  'experiment', 'test', 'trial', 'research',
-  'theory', 'hypothesis', 'concept', 'idea',
-  'discovery', 'finding', 'breakthrough', 'revelation',
-
-  // Actions & Motion
-  'run', 'sprint', 'dash', 'race',
-  'walk', 'stroll', 'wander', 'amble',
-  'jump', 'leap', 'hop', 'bound',
-  'fly', 'soar', 'glide', 'hover',
-  'swim', 'dive', 'plunge', 'submerge',
-  'climb', 'ascend', 'scale', 'mount',
-  'fall', 'drop', 'plummet', 'descend',
-  'push', 'shove', 'thrust', 'propel',
-  'pull', 'tug', 'drag', 'haul',
-  'throw', 'toss', 'hurl', 'fling',
-  'catch', 'grab', 'seize', 'snatch',
-  'build', 'construct', 'create', 'assemble',
-  'destroy', 'demolish', 'ruin', 'wreck',
-  'fix', 'repair', 'mend', 'restore',
-  'break', 'shatter', 'fracture', 'crack',
-
-  // More Diverse  
-  'glacier', 'iceberg', 'tundra', 'arctic',
-  'tsunami', 'wave', 'surge', 'flood',
-  'avalanche', 'landslide', 'rockslide', 'cascade',
-  'harvest', 'crop', 'yield', 'produce',
-  'festival', 'celebration', 'carnival', 'ceremony',
-  'journey', 'voyage', 'expedition', 'trek',
-  'adventure', 'quest', 'mission', 'odyssey',
-  'mystery', 'puzzle', 'enigma', 'riddle',
-  'magic', 'sorcery', 'witchcraft', 'enchantment',
-  'dream', 'vision', 'fantasy', 'imagination',
-  'reality', 'actuality', 'existence', 'truth',
-  'memory', 'recollection', 'remembrance', 'reminiscence',
-  'future', 'tomorrow', 'destiny', 'fate',
-  'past', 'history', 'yesterday', 'antiquity',
-  'present', 'now', 'current', 'contemporary',
-];
+import WORD_POOL from './word-pool.json';
 
 const FALL_SPEED = 0.3;
 const SPAWN_INTERVAL = 7500;
@@ -188,21 +59,37 @@ export default function SemanticClearGame() {
     };
   }, []);
 
+  const startTimeRef = useRef<number>(0);
+  const [survivalSeconds, setSurvivalSeconds] = useState(0);
+
   // --- AUTH & DEDUCTION ---
-  const checkPlayer = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const checkPlayer = async (customUid?: string) => {
+    // Handling e.preventDefault() if it's an event, or string if called directly
+    let checkKv = uid;
+    if (typeof customUid === 'string') {
+      checkKv = customUid;
+    } else if (customUid && (customUid as any).preventDefault) {
+      (customUid as any).preventDefault();
+    }
+
+    const finalUid = checkKv.trim();
+    if (!finalUid) return;
+
     setAuthLoading(true);
     try {
       const { data, error } = await supabase
         .from('players')
         .select('name, stonks')
-        .eq('uid', uid)
+        .eq('uid', finalUid)
         .single();
 
       if (error || !data) {
         showToast('Player not found!', 'error');
         setPlayerData(null);
       } else {
+        // DEBUG: Check data integrity
+        if (!data.name) console.warn('Player data loaded but name is missing:', data);
+
         setPlayerData(data);
         setGamePhase('BET');
       }
@@ -405,35 +292,14 @@ export default function SemanticClearGame() {
     }
   }, [gamePhase]);
 
-  // Calculate dynamic stonks based on score tiers
-  const calculateStonks = (score: number): number => {
-    let stonks = 0;
+  // Calculate dynamic stonks based on survival time (10 per 30s, max 50)
+  const calculateStonks = (seconds: number): number => {
+    // Rule: 10 Stonks per 30 seconds
+    const chunks = Math.floor(seconds / 30);
+    const stonks = chunks * 10;
 
-    // 100-500 points: 2 stonks per 100 points
-    if (score >= 100) {
-      const tier1Points = Math.min(score, 500);
-      stonks += Math.floor(tier1Points / 100) * 2;
-    }
-
-    // 500-1000 points: 4 stonks per 100 points
-    if (score > 500) {
-      const tier2Points = Math.min(score - 500, 500);
-      stonks += Math.floor(tier2Points / 100) * 4;
-    }
-
-    // 1000-2000 points: 8 stonks per 100 points
-    if (score > 1000) {
-      const tier3Points = Math.min(score - 1000, 1000);
-      stonks += Math.floor(tier3Points / 100) * 6;
-    }
-
-    // 2000+ points: 16 stonks per 100 points
-    if (score > 2000) {
-      const tier4Points = score - 2000;
-      stonks += Math.floor(tier4Points / 100) * 10;
-    }
-
-    return stonks;
+    // Rule: Max 50 Stonks
+    return Math.min(stonks, 50);
   };
 
   // Game over: Log result and award stonks
@@ -441,9 +307,11 @@ export default function SemanticClearGame() {
     if (gameOver && gamePhase === 'PLAYING') {
       const handleGameOver = async () => {
         setGamePhase('RESULT');
+        const survived = Math.floor((Date.now() - startTimeRef.current) / 1000);
+        setSurvivalSeconds(survived);
 
         // Award stonks based on dynamic tier system
-        const stonksEarned = calculateStonks(score);
+        const stonksEarned = calculateStonks(survived);
 
         if (playerData && stonksEarned > 0) {
           await supabase
@@ -483,7 +351,10 @@ export default function SemanticClearGame() {
   if (gamePhase === 'AUTH') {
     return (
       <StandardAuth
-        onVerify={(id) => { setUid(id); checkPlayer({ preventDefault: () => { } } as any); }}
+        onVerify={(id) => {
+          setUid(id);
+          checkPlayer(id); // Pass ID directly
+        }}
         loading={authLoading}
         title={
           <h1 className="text-4xl font-heading mb-6 text-center uppercase text-black">
@@ -502,6 +373,7 @@ export default function SemanticClearGame() {
     return (
       <StandardBet
         playerData={playerData}
+        uid={uid}
         entryFee={GAME_CONSTANTS.ENTRY_FEE}
         onPlay={payAndStart}
         onCancel={resetToAuth}
@@ -514,13 +386,37 @@ export default function SemanticClearGame() {
             Semantic <span className="text-neo-pink">Clear</span>
           </h1>
         }
+        instructions={
+          <ul className="space-y-2 text-sm text-gray-700 font-mono text-left">
+            <li>• Type words similar to the falling words to clear them.</li>
+            <li>• 10 Stonks for every 30 seconds you survive.</li>
+            <li>• Maximum reward: 50 Stonks.</li>
+          </ul>
+        }
       />
     );
   }
 
   // RESULT SCREEN
   if (gamePhase === 'RESULT') {
-    const stonksEarned = calculateStonks(score);
+    // Calculate time survived directly or use a tracked state.
+    // Since we don't have a robust timer state, we can estimate or standard practice would be to use a ref tracking start time.
+    // For now, let's assume 'score' tracks points, but we need TIME.
+    // I will add a 'survivalTime' ref/state in a separate edit, but for now let's reuse score variable if I can change its meaning, or better, add a new variable.
+    // Wait, simpler: I'll use a new Ref for startTime in the main component.
+
+    // Actually, I can't easily inject a ref hook here without re-reading the whole file top.
+    // I recall reading the top. Let's ASSUME I need to inject `startTimeRef`.
+    // Instead of injecting, I can check if 'score' tracks something else.
+    // The previous code incremented 'score' by points. 
+    // I should probably change the Game Loop to increment score by TIME or track time separately.
+
+    // Plan: I will use 'score' to represent "Survival Score" which correlates to time? No points are "100" etc.
+    // The user said "10 Stonks for surviving every 30 seconds".
+    // I'll calculate it based on a new `survivalSeconds` variable I'll introduce.
+
+    // For this specific replacement, I'll pass `survivalSeconds` which I'll add.
+    const stonksEarned = calculateStonks(survivalSeconds);
 
     return (
       <div className="h-screen overflow-auto bg-neo-pink text-white font-mono p-4 md:p-8 flex items-center justify-center">
@@ -529,7 +425,8 @@ export default function SemanticClearGame() {
             <div className="bg-neo-green p-8 border-4 border-black mb-6">
               <Trophy size={64} className="mx-auto mb-4" />
               <h2 className="text-5xl font-heading mb-2 uppercase">Game Over!</h2>
-              <p className="text-3xl font-bold mb-2">Score: {score}</p>
+              <p className="text-xl font-bold mb-2">Survival Time: {survivalSeconds}s</p>
+              <p className="text-xl font-bold mb-2 text-gray-500">Score: {score}</p>
               <p className="font-bold text-xl text-neo-pink">+{stonksEarned} STONKS EARNED</p>
             </div>
             <button

@@ -338,6 +338,7 @@ export default function DumbCharadesGame() {
     return (
       <StandardBet
         playerData={playerData}
+        uid={uid}
         entryFee={GAME_CONSTANTS.ENTRY_FEE}
         onPlay={payAndStart}
         onCancel={resetToAuth}

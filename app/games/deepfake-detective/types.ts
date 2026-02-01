@@ -18,4 +18,5 @@ export interface GameState {
   gameOver: boolean;
   selectedSide: 'left' | 'right' | null;
   showFeedback: boolean;
+  timeLeft: number;
 }

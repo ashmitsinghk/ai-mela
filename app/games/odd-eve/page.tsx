@@ -304,7 +304,7 @@ export default function OddEveGame() {
     const finishMatch = async (result: 'WIN' | 'LOSS' | 'DRAW') => {
         setPopup(null); // Clear any partial popups
         setGameResult(result);
-        const reward = result === 'WIN' ? 35 : 0;
+        const reward = result === 'WIN' ? 30 : 0;
         if (result === 'WIN') {
             if (playerData) await supabase.from('players').update({ stonks: playerData.stonks + reward }).eq('uid', uid);
         }
@@ -387,6 +387,7 @@ export default function OddEveGame() {
         return (
             <StandardBet
                 playerData={playerData}
+                uid={uid}
                 entryFee={GAME_CONSTANTS.ENTRY_FEE}
                 onPlay={payAndStart}
                 onCancel={() => setGameState('AUTH')}
@@ -503,7 +504,7 @@ export default function OddEveGame() {
                                 <div className={`p-8 border-4 border-black text-center max-w-md w-full ${gameResult === 'WIN' ? 'bg-neo-green' : 'bg-red-500 text-white'}`}>
                                     {gameResult === 'WIN' ? <Trophy size={64} className="mx-auto mb-4" /> : <Skull size={64} className="mx-auto mb-4" />}
                                     <h2 className="text-6xl font-heading mb-2">{gameResult === 'WIN' ? 'VICTORY' : 'DEFEAT'}</h2>
-                                    <p className="text-2xl font-bold mb-8">{gameResult === 'WIN' ? '+35 STONKS' : 'PLAY AGAIN?'}</p>
+                                    <p className="text-2xl font-bold mb-8">{gameResult === 'WIN' ? '+30 STONKS' : 'PLAY AGAIN?'}</p>
                                     <button onClick={resetMatch} className="w-full bg-white text-black py-4 font-heading text-xl border-4 border-black mb-4">REMATCH</button>
                                     <button onClick={resetGame} className="w-full bg-black text-white py-4 font-heading text-xl">EXIT</button>
                                 </div>

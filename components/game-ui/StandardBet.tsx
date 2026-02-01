@@ -4,6 +4,7 @@ import React from 'react';
 
 interface StandardBetProps {
     playerData: { name: string | null; stonks: number };
+    uid?: string;
     entryFee: number;
     onPlay: () => void;
     onCancel: () => void;
@@ -18,6 +19,7 @@ interface StandardBetProps {
 
 export default function StandardBet({
     playerData,
+    uid,
     entryFee,
     onPlay,
     onCancel,
@@ -53,7 +55,7 @@ export default function StandardBet({
                 </div>
 
                 <div className="text-center">
-                    <h2 className="text-2xl font-bold mb-2 text-black">PLAYER: {playerData.name || 'Unknown'}</h2>
+                    <h2 className="text-2xl font-bold mb-2 text-black">PLAYER: {playerData.name || uid || 'Unknown'}</h2>
                     <div className="text-4xl font-heading mb-6 text-black">BALANCE: {playerData.stonks} 💎</div>
 
                     {instructions && (

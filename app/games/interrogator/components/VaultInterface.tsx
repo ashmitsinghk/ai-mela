@@ -229,8 +229,8 @@ export default function VaultInterface() {
   const handleWin = async () => {
     if (!playerData) return;
 
-    // Award 40 points (20 refund + 20 bonus = net +20)
-    const newStonks = playerData.stonks + 40;
+    // Award 50 points (User Rule: 50 stonks for winning)
+    const newStonks = playerData.stonks + 50;
 
     await supabase
       .from('players')
@@ -242,7 +242,7 @@ export default function VaultInterface() {
       player_uid: uid,
       game_title: 'AI Interrogator',
       result: 'WIN',
-      stonks_change: 40
+      stonks_change: 50
     });
 
     setPlayerData({ ...playerData, stonks: newStonks });
@@ -336,7 +336,7 @@ export default function VaultInterface() {
           </h1>
 
           <div className="text-center">
-            <h2 className="text-2xl font-bold mb-2 text-green-400">PLAYER: {playerData.name || 'Unknown'}</h2>
+            <h2 className="text-2xl font-bold mb-2 text-green-400">PLAYER: {playerData.name || uid || 'Unknown'}</h2>
             <div className="text-4xl font-bold mb-6 text-cyan-400">BALANCE: {playerData.stonks} 💎</div>
 
             <div className="border-4 border-green-400 p-4 mb-6 bg-green-900/20 text-left">

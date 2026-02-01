@@ -233,6 +233,7 @@ export default function ScavengerHunt() {
             {gameState === 'BET' && playerData && (
                 <StandardBet
                     playerData={playerData}
+                    uid={uid || undefined}
                     entryFee={GAME_CONSTANTS.ENTRY_FEE}
                     onPlay={startGame}
                     onCancel={() => setGameState('AUTH')}

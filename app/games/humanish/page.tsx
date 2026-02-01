@@ -451,6 +451,7 @@ export default function HumanishGame() {
         {gameState === 'BET' && playerData && (
           <StandardBet
             playerData={playerData}
+            uid={uid}
             entryFee={GAME_CONSTANTS.ENTRY_FEE}
             onPlay={startGame}
             onCancel={() => setGameState('AUTH')}
