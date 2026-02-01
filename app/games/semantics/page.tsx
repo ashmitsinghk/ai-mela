@@ -491,6 +491,7 @@ export default function SemanticClearGame() {
           </h1>
         }
         themeColor="neo-pink"
+        bgImage="/semantics.gif"
         bgColor="bg-neo-cyan"
       />
     );
@@ -506,6 +507,7 @@ export default function SemanticClearGame() {
         onCancel={resetToAuth}
         loading={authLoading}
         themeColor="neo-green"
+        bgImage="/semantics.gif"
         bgColor="bg-neo-yellow"
         title={
           <h1 className="text-4xl font-heading mb-6 text-center uppercase text-black">
@@ -531,16 +533,10 @@ export default function SemanticClearGame() {
               <p className="font-bold text-xl text-neo-pink">+{stonksEarned} STONKS EARNED</p>
             </div>
             <button
-              onClick={restartGame}
-              className="w-full bg-white text-black text-2xl font-heading py-4 border-4 border-black mb-4 shadow-[16px_16px_0px_#000] hover:translate-y-1 hover:shadow-none flex items-center justify-center gap-2"
-            >
-              <RefreshCw /> PLAY AGAIN (SAME PLAYER)
-            </button>
-            <button
               onClick={resetToAuth}
               className="w-full bg-black text-white text-xl font-heading py-4 border-4 border-black hover:bg-gray-800"
             >
-              NEW PLAYER
+              EXIT
             </button>
           </div>
         </div>
@@ -595,7 +591,10 @@ export default function SemanticClearGame() {
 
   // Main Game (PLAYING phase)
   return (
-    <div className="h-screen overflow-auto bg-neo-yellow text-black font-mono p-4 md:p-8 flex items-center justify-center">
+    <div
+      className="h-screen overflow-auto bg-cover bg-center bg-no-repeat text-black font-mono p-4 md:p-8 flex items-center justify-center"
+      style={{ backgroundImage: "url('/semantics.gif')" }}
+    >
       <div className="max-w-4xl w-full bg-white border-8 border-black shadow-[16px_16px_0px_#000] overflow-hidden">
         {/* Header */}
         <div className="bg-black text-neo-green p-4 border-b-8 border-black">
@@ -672,16 +671,10 @@ export default function SemanticClearGame() {
                   Stonks Earned: <span className="font-heading text-neo-cyan">{calculateStonks(score)}</span> 💎
                 </p>
                 <button
-                  onClick={restartGame}
-                  className="w-full bg-neo-green text-black text-2xl font-heading py-4 border-4 border-black shadow-[4px_4px_0px_#000] hover:translate-y-1 hover:shadow-none transition-all flex items-center justify-center gap-2 mb-2"
-                >
-                  <RefreshCw /> Play Again
-                </button>
-                <button
                   onClick={resetToAuth}
                   className="w-full bg-black text-white text-xl font-heading py-3 border-4 border-black hover:bg-gray-800"
                 >
-                  New Player
+                  EXIT
                 </button>
               </div>
             </div>
