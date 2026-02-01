@@ -29,7 +29,8 @@ Rules for Fakes:
 2. They must be bizarre but physically possible (no aliens or magic).
 3. Use specific names, locations, and numbers to make them sound authoritative.
 4. Ensure the fakes are indistinguishable from the real one in terms of 'weirdness.'
-5. Output strictly in JSON format: {"real": "string", "fakes": ["string", "string"]}.`;
+5. Output strictly in JSON format: {"real": "string", "fakes": ["string", "string"]}.
+6. Use country: India and states and cities of India as locations.`;
 
     const userPrompt = `Real Headline: ${realHeadline}`;
 
@@ -52,7 +53,7 @@ Rules for Fakes:
     }
 
     const result: HeadlineSet = JSON.parse(content);
-    
+
     // Validate the response structure
     if (!result.real || !Array.isArray(result.fakes) || result.fakes.length !== 2) {
       throw new Error('Invalid response format from AI');
@@ -63,7 +64,7 @@ Rules for Fakes:
 
   } catch (error: any) {
     console.error('❌ Headline generation error:', error);
-    
+
     // Fallback: Return the real headline with generic fakes
     return {
       real: realHeadline,
@@ -92,7 +93,8 @@ Rules for Fakes:
 2. They must be bizarre but physically possible (no aliens or magic).
 3. Use specific names, locations, and numbers to make them sound authoritative.
 4. Ensure the fakes are indistinguishable from the real one in terms of 'weirdness.'
-5. Output strictly in JSON format: {"real": "string", "fakes": ["string", "string"]}.`;
+5. Output strictly in JSON format: {"real": "string", "fakes": ["string", "string"]}.
+6. Use country: India and states and cities of India as locations.`;
 
     const userPrompt = `Real Headline: ${realHeadline}`;
 
@@ -129,13 +131,13 @@ Rules for Fakes:
 
     const data = await response.json();
     const content = data.candidates?.[0]?.content?.parts?.[0]?.text;
-    
+
     if (!content) {
       throw new Error('No response from Gemini');
     }
 
     const result: HeadlineSet = JSON.parse(content);
-    
+
     // Validate the response structure
     if (!result.real || !Array.isArray(result.fakes) || result.fakes.length !== 2) {
       throw new Error('Invalid response format from Gemini');
@@ -146,7 +148,7 @@ Rules for Fakes:
 
   } catch (error: any) {
     console.error('❌ Gemini headline generation error:', error);
-    
+
     // Fallback: Return the real headline with generic fakes
     return {
       real: realHeadline,
