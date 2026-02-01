@@ -428,6 +428,10 @@ export default function SemanticClearGame() {
               <p className="text-xl font-bold mb-2">Survival Time: {survivalSeconds}s</p>
               <p className="text-xl font-bold mb-2 text-gray-500">Score: {score}</p>
               <p className="font-bold text-xl text-neo-pink">+{stonksEarned} STONKS EARNED</p>
+              <div className="mt-4 pt-4 border-t-2 border-black">
+                <p className="text-sm font-bold uppercase mb-1">Total Balance</p>
+                <p className="text-3xl font-heading text-neo-cyan">{playerData?.stonks} 💎</p>
+              </div>
             </div>
             <button
               onClick={resetToAuth}

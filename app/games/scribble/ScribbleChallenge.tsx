@@ -1022,6 +1022,12 @@ export default function ScribbleChallenge() {
                                 ) : '0'} 💎
                               </div>
                             </div>
+                            <div>
+                              <div className="text-gray-400 text-xs font-bold uppercase">Total Stonks</div>
+                              <div className="font-bold text-lg text-[#3BA4E8]">
+                                {playerData?.stonks || 0} 💎
+                              </div>
+                            </div>
                           </div>
                         </div>
 

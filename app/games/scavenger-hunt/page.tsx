@@ -341,16 +341,14 @@ export default function ScavengerHunt() {
                             </div>
                         </div>
 
-                        <div className="mt-8 grid grid-cols-2 gap-4">
+                        <div className="mt-8">
+                            <div className="flex justify-between items-center text-blue-600 font-bold text-lg mb-4 border-t border-gray-200 pt-2">
+                                <span>Total Stonks</span>
+                                <span>{playerData?.stonks} 💎</span>
+                            </div>
                             <button
-                                onClick={() => { setGameState('BET'); }}
-                                className="bg-black text-white p-3 font-bold hover:bg-gray-800"
-                            >
-                                PLAY AGAIN
-                            </button>
-                            <button
-                                onClick={() => router.push('/games')}
-                                className="bg-gray-200 text-black p-3 font-bold hover:bg-gray-300"
+                                onClick={() => setGameState('AUTH')}
+                                className="w-full bg-black text-white p-3 font-bold hover:bg-gray-800"
                             >
                                 EXIT
                             </button>

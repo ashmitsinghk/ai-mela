@@ -408,12 +408,14 @@ export default function DeepfakeDetective() {
               </p>
             </div>
 
-            <button
-              onClick={playAgain}
-              className="w-full bg-orange-500 text-white text-2xl font-black uppercase py-4 px-8 border-4 border-black shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] hover:shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] hover:translate-x-[2px] hover:translate-y-[2px] transition-all active:shadow-none active:translate-x-[4px] active:translate-y-[4px] mb-3"
-            >
-              DETECT AGAIN
-            </button>
+            <div className="text-center mb-8">
+              <p className="text-xl font-bold uppercase mb-2">Total Stonks Balance</p>
+              <div className="bg-blue-500 border-4 border-black inline-block px-8 py-4">
+                <p className="text-3xl font-black text-white uppercase">
+                  {playerData?.stonks} STONKS
+                </p>
+              </div>
+            </div>
 
             <button
               onClick={resetToAuth}

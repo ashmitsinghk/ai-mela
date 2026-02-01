@@ -437,7 +437,14 @@ export default function MemeRecreator() {
                                 {score >= 5 ? (GAME_CONSTANTS.ENTRY_FEE + (score - 5) * 4 > 40 ? 40 : GAME_CONSTANTS.ENTRY_FEE + (score - 5) * 4) : 0} Stonks
                             </span>
                         </div>
-                        <button onClick={() => setGameState('BET')} className="w-full bg-black text-white py-3 mt-8 font-bold">PLAY AGAIN</button>
+                        <div className="flex justify-between border-t border-gray-300 pt-4 mt-4">
+                            <span>Total Stonks:</span>
+                            <span className="font-bold text-blue-600">
+                                {playerData?.stonks} 💎
+                            </span>
+                        </div>
+
+                        <button onClick={() => setGameState('AUTH')} className="w-full bg-black text-white py-3 mt-8 font-bold">EXIT</button>
                     </div>
                 </div>
             )}

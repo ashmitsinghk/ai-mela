@@ -474,6 +474,11 @@ export default function HeadlinesGame() {
                 <div className="text-sm text-gray-600 font-mono">New Balance: {playerData?.stonks} 💎</div>
               </div>
 
+              <div className="mb-4 p-4 bg-white border border-gray-200 rounded text-center">
+                <div className="text-xs text-gray-500 font-bold uppercase mb-1">Total Stonks</div>
+                <div className="text-2xl font-bold text-blue-600">{playerData?.stonks} 💎</div>
+              </div>
+
               <div className="space-y-2">
                 {roundResults.map((result, index) => (
                   <div

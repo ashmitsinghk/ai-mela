@@ -568,13 +568,20 @@ export default function HumanishGame() {
               </p>
             </div>
 
+            <div className="inline-block bg-white px-6 py-3 border-2 border-black rounded-lg shadow-sm mb-4">
+              <p className="text-sm font-bold text-gray-500 uppercase">Total Stonks</p>
+              <p className="text-2xl font-black text-blue-600">
+                {playerData?.stonks} GEMS
+              </p>
+            </div>
+
             <div>
               <button
-                onClick={startGame}
+                onClick={() => setGameState('AUTH')}
                 disabled={loading}
                 className="bg-white hover:bg-gray-100 text-black font-bold py-3 px-8 border-4 border-black shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] hover:shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] hover:translate-x-[2px] hover:translate-y-[2px] transition-all"
               >
-                PLAY AGAIN
+                EXIT
               </button>
             </div>
           </div>

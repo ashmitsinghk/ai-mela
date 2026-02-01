@@ -505,8 +505,11 @@ export default function OddEveGame() {
                                     {gameResult === 'WIN' ? <Trophy size={64} className="mx-auto mb-4" /> : <Skull size={64} className="mx-auto mb-4" />}
                                     <h2 className="text-6xl font-heading mb-2">{gameResult === 'WIN' ? 'VICTORY' : 'DEFEAT'}</h2>
                                     <p className="text-2xl font-bold mb-8">{gameResult === 'WIN' ? '+30 STONKS' : 'PLAY AGAIN?'}</p>
-                                    <button onClick={resetMatch} className="w-full bg-white text-black py-4 font-heading text-xl border-4 border-black mb-4">REMATCH</button>
-                                    <button onClick={resetGame} className="w-full bg-black text-white py-4 font-heading text-xl">EXIT</button>
+                                    <div className="mb-6 p-4 bg-white/10 border-2 border-white/50">
+                                        <div className="text-xs font-bold uppercase mb-1 text-white/70">Total Stonks</div>
+                                        <div className="text-3xl font-bold text-white">{playerData?.stonks} 💎</div>
+                                    </div>
+                                    <button onClick={resetGame} className="w-full bg-black text-white py-4 font-heading text-xl border-4 border-white hover:bg-white hover:text-black transition-colors">EXIT</button>
                                 </div>
                             </div>
                         )}

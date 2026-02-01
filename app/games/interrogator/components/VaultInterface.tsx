@@ -429,6 +429,11 @@ export default function VaultInterface() {
               </div>
             )}
 
+            <div className="mb-6 p-4 border-2 border-cyan-400 bg-cyan-900/20">
+              <div className="text-xs font-bold text-cyan-400 uppercase mb-1">Current Balance</div>
+              <div className="text-3xl font-bold text-white">{playerData?.stonks} 💎</div>
+            </div>
+
             <button
               onClick={resetToAuth}
               className="w-full bg-green-400 text-black text-2xl font-bold py-4 border-4 border-green-400 mb-4 shadow-[16px_16px_0px_rgba(34,197,94,0.3)] hover:translate-y-1 hover:shadow-none flex items-center justify-center gap-2"
