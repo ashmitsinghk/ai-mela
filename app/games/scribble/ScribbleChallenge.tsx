@@ -5,6 +5,10 @@ import { analyzeDrawing } from './scribble';
 import { getRandomWord } from './words-list';
 import CircularTimer from './components/CircularTimer';
 import { supabase } from '@/utils/supabase';
+import { useToast } from '@/contexts/ToastContext';
+import { GAME_CONSTANTS } from '@/utils/game-constants';
+import StandardAuth from '@/components/game-ui/StandardAuth';
+import StandardBet from '@/components/game-ui/StandardBet';
 import { Loader2, Palette, Send, Eraser, Trash2, User, Play, Clock, Trophy } from 'lucide-react';
 
 type GameState = 'AUTH' | 'BET' | 'wordSelection' | 'idle' | 'playing' | 'won' | 'lost';
@@ -34,6 +38,7 @@ const AVATARS = ['👤', '😤', '😎', '🤪', '🤓', '🤖', '👽', '👻',
 const BRUSH_SIZES = [2, 4, 8, 12, 16];
 
 export default function ScribbleChallenge() {
+  const { showToast } = useToast();
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const chatEndRef = useRef<HTMLDivElement>(null);
   const [isDrawing, setIsDrawing] = useState(false);
@@ -48,6 +53,14 @@ export default function ScribbleChallenge() {
   const pollingIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const timerIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const lastAnalysisRef = useRef<number>(0);
+  const logicTimerRef = useRef<NodeJS.Timeout | null>(null);
+
+  // Cleanup on unmount
+  useEffect(() => {
+    return () => {
+      if (logicTimerRef.current) clearTimeout(logicTimerRef.current);
+    };
+  }, []);
 
   // Auth state
   const [uid, setUid] = useState('');
@@ -95,23 +108,24 @@ export default function ScribbleChallenge() {
   }, [targetWord]);
 
   // Auth functions
-  const checkPlayer = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const checkPlayer = async (e: React.FormEvent | null, specificId?: string) => {
+    if (e) e.preventDefault();
     setLoading(true);
+    const idToCheck = specificId || uid;
+
     try {
       const { data, error } = await supabase
         .from('players')
         .select('name, stonks')
-        .eq('uid', uid)
+        .eq('uid', idToCheck)
         .single();
 
       if (error || !data) {
         // Player not found or error, create pseudo-session for demo/play
         // In a real app we'd create a user. For now, just set state.
-        setPlayerData({ name: uid, stonks: 50, avatar: AVATARS[avatarIndex] });
+        setPlayerData({ name: idToCheck, stonks: 50, avatar: AVATARS[avatarIndex] });
         setGameState('BET');
-        // alert('Player not found!'); 
-        // setPlayerData(null);
+        showToast('Player not found! using demo mode.', 'info');
       } else {
         setPlayerData({ ...data, avatar: AVATARS[avatarIndex] });
         setGameState('BET');
@@ -141,19 +155,19 @@ export default function ScribbleChallenge() {
 
 
   const payAndStart = async () => {
-    if (!playerData || playerData.stonks < 20) {
-      alert('Insufficient Stonks!');
+    if (!playerData || playerData.stonks < GAME_CONSTANTS.ENTRY_FEE) {
+      showToast('Insufficient Stonks!', 'error');
       return;
     }
     setLoading(true);
 
     const { error: updateError } = await supabase
       .from('players')
-      .update({ stonks: playerData.stonks - 20 })
+      .update({ stonks: playerData.stonks - GAME_CONSTANTS.ENTRY_FEE })
       .eq('uid', uid);
 
     if (updateError) {
-      alert('Transaction Failed');
+      showToast('Transaction Failed', 'error');
       setLoading(false);
       return;
     }
@@ -163,10 +177,10 @@ export default function ScribbleChallenge() {
       player_uid: uid,
       game_title: 'AI Scribble Challenge',
       result: 'PLAYING',
-      stonks_change: -20
+      stonks_change: -GAME_CONSTANTS.ENTRY_FEE
     });
 
-    setPlayerData({ ...playerData, stonks: playerData.stonks - 20 });
+    setPlayerData({ ...playerData, stonks: playerData.stonks - GAME_CONSTANTS.ENTRY_FEE });
     setLoading(false);
 
     // Initialize Round State
@@ -488,7 +502,11 @@ export default function ScribbleChallenge() {
         clearInterval(pollingIntervalRef.current);
         pollingIntervalRef.current = null;
       }
-      setTimeout(() => {
+      if (pollingIntervalRef.current) {
+        clearInterval(pollingIntervalRef.current);
+        pollingIntervalRef.current = null;
+      }
+      logicTimerRef.current = setTimeout(() => {
         setShieldActive(false);
         startPolling();
       }, 5000);
@@ -588,7 +606,7 @@ export default function ScribbleChallenge() {
             console.log('🛑 Cleared timer from timer');
           }
           // Use setTimeout to ensure state update happens after interval cleanup
-          setTimeout(() => {
+          logicTimerRef.current = setTimeout(() => {
             setGameState('lost');
             handleGameEnd('lost');
           }, 0);
@@ -599,7 +617,7 @@ export default function ScribbleChallenge() {
     }, 1000);
 
     // Start polling after a short delay to ensure state is updated
-    setTimeout(() => {
+    logicTimerRef.current = setTimeout(() => {
       console.log('🚀 Starting polling');
       startPolling();
     }, 100);
@@ -670,7 +688,7 @@ export default function ScribbleChallenge() {
             clearInterval(timerIntervalRef.current);
             timerIntervalRef.current = null;
           }
-          setTimeout(() => {
+          logicTimerRef.current = setTimeout(() => {
             setGameState('lost');
             handleGameEnd('lost');
           }, 0);
@@ -681,7 +699,7 @@ export default function ScribbleChallenge() {
     }, 1000);
 
     // Start polling
-    setTimeout(() => {
+    logicTimerRef.current = setTimeout(() => {
       console.log('🚀 Starting polling');
       startPolling();
     }, 100);
@@ -705,155 +723,70 @@ export default function ScribbleChallenge() {
         backgroundRepeat: 'no-repeat'
       }}
     >
-      {/* GLOBAL LOGO & AD SPACE (Top Area) */}
-      <div className="w-full max-w-[1200px] mx-auto p-4 flex flex-col items-center justify-center pointer-events-none z-10">
-        <div className="pointer-events-auto mb-2 text-center">
-          <div className="text-6xl md:text-8xl font-black tracking-wider flex items-center justify-center gap-1 drop-shadow-[4px_4px_0px_rgba(0,0,0,0.2)]"
-            style={{ textShadow: '4px 4px 0px #00000040', WebkitTextStroke: '2px black' }}>
-            <span className="text-[#FF5959]">s</span>
-            <span className="text-[#FF9D47]">c</span>
-            <span className="text-[#FFE647]">r</span>
-            <span className="text-[#65E068]">i</span>
-            <span className="text-[#59C7F7]">b</span>
-            <span className="text-[#5D59FF]">b</span>
-            <span className="text-[#A859FF]">l</span>
-            <span className="text-[#FF5959]">e</span>
-            <span className="text-white">.ai</span>
-            <span className="text-[#FF9D47] ml-1">!</span>
-          </div>
-          {/* AVATAR STRIP */}
-          {gameState === 'AUTH' && (
-            <div className="flex gap-2 justify-center mt-4 opacity-90">
-              {['😤', '😎', '🤪', '🤓', '🤖', '👽', '👻', '🤡'].map((emoji, i) => (
-                <div key={i} className={`w-10 h-10 rounded-full flex items-center justify-center text-2xl border-2 border-black ${[
-                  'bg-[#FF5959]', 'bg-[#FF9D47]', 'bg-[#FFE647]', 'bg-[#65E068]', 'bg-[#59C7F7]', 'bg-[#5D59FF]', 'bg-[#A859FF]', 'bg-[#FF8FAB]'
-                ][i]}`}>
-                  {emoji}
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-      </div>
+
 
       {/* GAME WINDOW CONTAINER */}
       <div className="flex-1 w-full max-w-[1200px] px-2 md:px-4 pb-4 min-h-0 flex flex-col items-center">
 
         {/* LOBBY / LOGIN */}
+        {/* LOBBY / LOGIN */}
         {gameState === 'AUTH' && (
-          <div className="flex-1 flex items-center justify-center w-full">
-            <div className="bg-[#152e4d]/90 p-4 rounded-xl shadow-[0px_0px_20px_#00000040] w-full max-w-md backdrop-blur-sm border border-[#ffffff10]">
-              {/* Input Row */}
-              <div className="flex gap-2 mb-4">
-                <input
-                  type="text"
-                  className="flex-1 bg-white rounded px-3 py-2 text-lg font-bold text-gray-800 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-[#3BA4E8]"
-                  placeholder="Enter your UID"
-                  value={uid}
-                  onChange={(e) => setUid(e.target.value)}
-                  required
-                  autoFocus
-                />
-
-              </div>
-
-              {/* Avatar Customizer */}
-              {/* Avatar Customizer */}
-              <div className="bg-[#0c2340] rounded-lg p-6 mb-4 relative border border-[#ffffff05]">
-                <button
-                  onClick={randomizeAvatar}
-                  className="absolute top-2 right-2 text-white/50 hover:text-white p-1 hover:scale-110 transition-all"
-                  title="Randomize Avatar"
-                >
-                  🎲
-                </button>
-                <div className="flex items-center justify-center gap-6">
-                  {/* Left Controls */}
-                  <div className="flex flex-col gap-2">
-                    <button
-                      onClick={handlePrevAvatar}
-                      className="text-white text-4xl hover:text-[#3BA4E8] transition-colors active:scale-90"
-                    >
-                      ◀
-                    </button>
-                  </div>
-
-                  {/* Avatar Display */}
-                  <div className="w-32 h-32 bg-[#f0f0f0] rounded-full border-4 border-white flex items-center justify-center text-6xl shadow-lg select-none">
-                    {AVATARS[avatarIndex]}
-                  </div>
-
-                  {/* Right Controls */}
-                  <div className="flex flex-col gap-2">
-                    <button
-                      onClick={handleNextAvatar}
-                      className="text-white text-4xl hover:text-[#3BA4E8] transition-colors active:scale-90"
-                    >
-                      ▶
-                    </button>
-                  </div>
+          <StandardAuth
+            onVerify={(id) => { setUid(id); checkPlayer(null, id); }}
+            loading={loading}
+            title={
+              <>
+                <div className="text-4xl md:text-5xl font-black tracking-wider flex items-center justify-center gap-1">
+                  <span className="text-[#FF5959]">s</span>
+                  <span className="text-[#FF9D47]">c</span>
+                  <span className="text-[#FFE647]">r</span>
+                  <span className="text-[#65E068]">i</span>
+                  <span className="text-[#59C7F7]">b</span>
+                  <span className="text-[#5D59FF]">b</span>
+                  <span className="text-[#A859FF]">l</span>
+                  <span className="text-[#FF5959]">e</span>
+                  <span className="text-black">.ai</span>
                 </div>
-              </div>
 
-              {/* Buttons */}
-              <div className="space-y-3">
-                <button
-                  onClick={checkPlayer}
-                  disabled={loading || !uid.trim()}
-                  className="w-full bg-[#53E07D] hover:bg-[#46c96b] text-white text-2xl font-black py-3 rounded shadow-[0px_4px_0px_#2b964d] active:shadow-none active:translate-y-[4px] transition-all uppercase disabled:opacity-50 disabled:cursor-not-allowed border-none cursor-pointer"
-                >
-                  {loading ? <Loader2 className="w-6 h-6 animate-spin mx-auto" /> : 'Play!'}
-                </button>
+                <div className="flex gap-2 justify-center mt-4 opacity-90">
+                  {['😤', '😎', '🤪', '🤓', '🤖', '👽', '👻', '🤡'].map((emoji, i) => (
+                    <div key={i} className={`w-10 h-10 rounded-full flex items-center justify-center text-2xl border-2 border-black ${[
+                      'bg-[#FF5959]', 'bg-[#FF9D47]', 'bg-[#FFE647]', 'bg-[#65E068]', 'bg-[#59C7F7]', 'bg-[#5D59FF]', 'bg-[#A859FF]', 'bg-[#FF8FAB]'
+                    ][i]}`}>
+                      {emoji}
+                    </div>
+                  ))}
+                </div>
+              </>
+            }
 
-              </div>
-
-              <div className="mt-4 text-center text-xs text-white/40">
-                Entry Fee: 20 💎 (Requires Balance)
-              </div>
-            </div>
-          </div>
+            themeColor="[#3BA4E8]"
+            bgImage="/Untitled%20(1920%20x%201080%20px)(3).png"
+            bgColor="bg-[#3B63BC]"
+          />
         )}
 
         {/* BET / CONFIRMATION */}
         {gameState === 'BET' && playerData && (
-          <div className="flex-1 flex items-center justify-center w-full">
-            <div className="bg-[#152e4d]/90 p-1 rounded-xl shadow-[0px_0px_20px_#00000040] w-full max-w-md backdrop-blur-sm">
-              <div className="bg-white rounded-lg p-8 text-center">
-                <h2 className="text-2xl font-black text-[#0E3359] mb-4 uppercase">Ready to Draw?</h2>
-
-                <div className="bg-blue-50 border-2 border-blue-100 rounded-xl p-4 mb-6">
-                  <div className="flex justify-between items-center mb-2">
-                    <span className="font-bold text-gray-500">Player</span>
-                    <span className="font-black text-lg text-[#0E3359]">{playerData.name || uid}</span>
-                  </div>
-                  <div className="flex justify-between items-center mb-2">
-                    <span className="font-bold text-gray-500">Balance</span>
-                    <span className="font-black text-lg text-[#0E3359]">{playerData.stonks} 💎</span>
-                  </div>
-                  <div className="border-t border-blue-200 my-2"></div>
-                  <div className="flex justify-between items-center text-green-600">
-                    <span className="font-bold">Entry Prize</span>
-                    <span className="font-black text-xl">+35 💎</span>
-                  </div>
-                </div>
-
-                {playerData.stonks < 20 ? (
-                  <div className="bg-red-100 text-red-600 p-4 rounded-lg font-bold mb-4">
-                    Insufficient Stonks (Need 20)
-                  </div>
-                ) : (
-                  <button
-                    onClick={payAndStart}
-                    disabled={loading}
-                    className="w-full bg-[#53E07D] hover:bg-[#46c96b] text-white text-2xl font-black py-4 rounded-lg shadow-[0px_4px_0px_#2b964d] active:shadow-none active:translate-y-[4px] transition-all uppercase mb-4"
-                  >
-                    {loading ? <Loader2 className="w-6 h-6 animate-spin mx-auto" /> : 'Start Game (20💎)'}
-                  </button>
-                )}
-                <button onClick={resetGame} className="text-gray-400 font-bold hover:text-gray-600 text-sm">Return to Lobby</button>
+          <StandardBet
+            playerData={playerData}
+            entryFee={GAME_CONSTANTS.ENTRY_FEE}
+            onPlay={payAndStart}
+            onCancel={resetGame}
+            loading={loading}
+            themeColor="[#53E07D]"
+            bgImage="/Untitled%20(1920%20x%201080%20px)(3).png"
+            bgColor="bg-[#3B63BC]"
+            title={
+              <h2 className="text-2xl font-black text-[#0E3359] mb-4 uppercase">Ready to Draw?</h2>
+            }
+            instructions={
+              <div className="flex justify-between items-center text-green-600">
+                <span className="font-bold">Entry Prize</span>
+                <span className="font-black text-xl">+30 💎</span>
               </div>
-            </div>
-          </div>
+            }
+          />
         )}
 
         {/* WORD SELECTION (Transparent Overlay Style) */}

@@ -4,6 +4,10 @@ import { useState, useRef, useEffect } from 'react';
 import Webcam from 'react-webcam';
 import { useRouter } from 'next/navigation';
 import { supabase } from '@/utils/supabase';
+import { useToast } from '@/contexts/ToastContext';
+import { GAME_CONSTANTS } from '@/utils/game-constants';
+import StandardAuth from '@/components/game-ui/StandardAuth';
+import StandardBet from '@/components/game-ui/StandardBet';
 import Script from 'next/script';
 import { Loader2, CheckCircle, XCircle } from 'lucide-react';
 
@@ -26,7 +30,7 @@ const MEMES = [
     {
         id: 'drake_no',
         hint: 'Nah, I don\'t like that.',
-        image: 'https://i.imgflip.com/1h7in3.jpg',
+        image: 'https://i.imgflip.com/30b1gx.jpg',
         targetPose: 'HAND_STOP'
     },
     {
@@ -112,10 +116,13 @@ const checkPose = (keypoints: any[], target: string): boolean => {
 };
 
 export default function MemeRecreator() {
+    const { showToast } = useToast();
     const router = useRouter();
     const webcamRef = useRef<Webcam>(null);
-    const [gameState, setGameState] = useState<'LOBBY' | 'PLAYING' | 'SUCCESS' | 'FINISHED'>('LOBBY');
+    const [gameState, setGameState] = useState<'AUTH' | 'BET' | 'PLAYING' | 'SUCCESS' | 'FINISHED'>('AUTH');
     const [modelLoaded, setModelLoaded] = useState(false);
+    const [playerData, setPlayerData] = useState<{ name: string | null; stonks: number } | null>(null);
+    const [loading, setLoading] = useState(false);
 
     // Timer
     const [totalTimeLeft, setTotalTimeLeft] = useState(90);
@@ -129,13 +136,21 @@ export default function MemeRecreator() {
 
     // AI
     const detectorRef = useRef<any>(null);
+
     const requestRef = useRef<number>(null);
+    const successTimerRef = useRef<NodeJS.Timeout | null>(null);
+
+    // Cleanup on unmount
+    useEffect(() => {
+        return () => {
+            if (successTimerRef.current) clearTimeout(successTimerRef.current);
+        };
+    }, []);
 
     // Init User
+    // removed local storage check in favor of StandardAuth
     useEffect(() => {
-        if (typeof window !== 'undefined') {
-            setUid(localStorage.getItem('user_uid'));
-        }
+        // init
     }, []);
 
     // Robust loading for CDN scripts
@@ -230,30 +245,33 @@ export default function MemeRecreator() {
 
 
     const startGame = async () => {
-        if (!uid) return router.push('/login');
+        if (!uid || !playerData) return;
+        setLoading(true);
 
-        // Economy Check
-        const { data: userData } = await supabase.from('players').select('stonks').eq('uid', uid).single();
-        if (!userData || userData.stonks < 20) {
-            alert('Not enough stonks (Need 20)');
-            return;
+        try {
+            // Deduct
+            const { error } = await supabase.from('players').update({ stonks: playerData.stonks - GAME_CONSTANTS.ENTRY_FEE }).eq('uid', uid);
+
+            if (error) throw error;
+
+            await supabase.from('game_logs').insert({
+                player_uid: uid,
+                game_title: 'Meme Recreator (Entry)',
+                result: 'LOSS',
+                stonks_change: -GAME_CONSTANTS.ENTRY_FEE
+            });
+
+            // Start
+            setScore(0);
+            setTotalTimeLeft(90);
+            setCurrentMemeIndex(0);
+            pickRandomMeme();
+            setGameState('PLAYING');
+        } catch (e) {
+            showToast('Failed to start game', 'error');
+        } finally {
+            setLoading(false);
         }
-
-        // Deduct
-        await supabase.from('players').update({ stonks: userData.stonks - 20 }).eq('uid', uid);
-        await supabase.from('game_logs').insert({
-            player_uid: uid,
-            game_title: 'Meme Recreator (Entry)',
-            result: 'LOSS',
-            stonks_change: -20
-        });
-
-        // Start
-        setScore(0);
-        setTotalTimeLeft(90);
-        setCurrentMemeIndex(0);
-        pickRandomMeme();
-        setGameState('PLAYING');
     };
 
     const pickRandomMeme = () => {
@@ -271,7 +289,8 @@ export default function MemeRecreator() {
         setScore(s => s + 1);
 
         // Pause for 2 seconds to show meme
-        setTimeout(() => {
+        // Pause for 2 seconds to show meme
+        successTimerRef.current = setTimeout(() => {
             if (totalTimeLeft > 0) {
                 nextItem();
                 setGameState('PLAYING');
@@ -284,7 +303,7 @@ export default function MemeRecreator() {
         // Calc Reward
         let reward = 0;
         if (score >= 5) {
-            reward = 20 + (score - 5) * 4;
+            reward = GAME_CONSTANTS.ENTRY_FEE + (score - 5) * 4;
             if (reward > 40) reward = 40;
         }
 
@@ -308,35 +327,61 @@ export default function MemeRecreator() {
                 ← EXIT
             </button>
 
-            {gameState === 'LOBBY' && (
-                <div className="flex-1 flex flex-col items-center justify-center p-6 text-center space-y-6">
-                    <h1 className="text-4xl md:text-6xl font-heading text-white mb-4 animate-pulse">
-                        MEME RECREATOR
-                    </h1>
-                    <div className="text-6xl mb-6">🎭🤖</div>
-                    <div className="bg-gray-900 border-4 border-neo-green p-6 max-w-sm w-full">
-                        <ul className="text-left space-y-2 text-sm text-gray-400 mb-6">
-                            <li>• Cost: 20 Stonks</li>
+            {gameState === 'AUTH' && (
+                <StandardAuth
+                    onVerify={async (id) => {
+                        setUid(id);
+                        setLoading(true);
+                        const { data } = await supabase.from('players').select('*').eq('uid', id).single();
+                        if (data) {
+                            setPlayerData(data);
+                            setGameState('BET');
+                        } else {
+                            showToast('Player not found', 'error');
+                        }
+                        setLoading(false);
+                    }}
+                    loading={loading}
+                    title={
+                        <h1 className="text-4xl md:text-6xl font-heading text-white mb-4 animate-pulse">
+                            MEME RECREATOR
+                        </h1>
+                    }
+                    themeColor="neo-green"
+                    bgColor="bg-black"
+                />
+            )}
+
+            {gameState === 'BET' && playerData && (
+                <StandardBet
+                    playerData={playerData}
+                    entryFee={GAME_CONSTANTS.ENTRY_FEE}
+                    onPlay={startGame}
+                    onCancel={() => setGameState('AUTH')}
+                    loading={loading || !modelLoaded}
+                    themeColor="neo-green"
+                    bgColor="bg-black"
+                    title={
+                        <h1 className="text-4xl md:text-6xl font-heading text-white mb-4">
+                            READY?
+                        </h1>
+                    }
+                    instructions={
+                        <ul className="text-left space-y-2 text-sm text-gray-800 mb-6">
                             <li>• Hint Only - Recreate the Pose!</li>
                             <li>• 9s per Meme</li>
                             <li>• 5 Solved = Money Back</li>
                             <li>• Max Reward: 40 Stonks</li>
+                            {!modelLoaded && <li className="text-red-500 font-bold animate-pulse">Loading AI Models...</li>}
                         </ul>
-                        <button
-                            onClick={startGame}
-                            disabled={!modelLoaded}
-                            className={`w-full font-heading text-2xl py-4 transition-transform ${modelLoaded ? 'bg-neo-green text-black hover:scale-105' : 'bg-gray-700 text-gray-500 cursor-not-allowed'}`}
-                        >
-                            {modelLoaded ? 'PLAY (-20)' : 'LOADING AI...'}
-                        </button>
-                    </div>
-                </div>
+                    }
+                />
             )}
 
             {(gameState === 'PLAYING' || gameState === 'SUCCESS') && (
                 <div className="flex-1 relative flex flex-col">
                     {/* HUD */}
-                    <div className="absolute top-0 left-0 right-0 z-10 p-4 flex justify-between items-start pointer-events-none">
+                    <div className="absolute top-14 left-0 right-0 z-10 p-4 flex justify-between items-start pointer-events-none">
                         <div className="bg-black/80 text-white p-2 border-2 border-white">
                             <div className="text-xs text-gray-400">TOTAL</div>
                             <div className="text-2xl font-bold text-white">{totalTimeLeft}s</div>
@@ -388,10 +433,10 @@ export default function MemeRecreator() {
                         <div className="flex justify-between border-t border-gray-300 pt-4">
                             <span>Reward:</span>
                             <span className="font-bold text-green-600">
-                                {score >= 5 ? (20 + (score - 5) * 4 > 40 ? 40 : 20 + (score - 5) * 4) : 0} Stonks
+                                {score >= 5 ? (GAME_CONSTANTS.ENTRY_FEE + (score - 5) * 4 > 40 ? 40 : GAME_CONSTANTS.ENTRY_FEE + (score - 5) * 4) : 0} Stonks
                             </span>
                         </div>
-                        <button onClick={() => setGameState('LOBBY')} className="w-full bg-black text-white py-3 mt-8 font-bold">PLAY AGAIN</button>
+                        <button onClick={() => setGameState('BET')} className="w-full bg-black text-white py-3 mt-8 font-bold">PLAY AGAIN</button>
                     </div>
                 </div>
             )}

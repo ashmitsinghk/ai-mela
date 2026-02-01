@@ -1,19 +1,24 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import Image from 'next/image';
 import { ImagePair, RoundData, GameState } from './types';
 import gameData from './game-data.json';
 import { supabase } from '@/utils/supabase';
+import { useToast } from '@/contexts/ToastContext';
+import { GAME_CONSTANTS } from '@/utils/game-constants';
+import StandardAuth from '@/components/game-ui/StandardAuth';
+import StandardBet from '@/components/game-ui/StandardBet';
 
 type GamePhase = 'AUTH' | 'BET' | 'PLAYING' | 'RESULT';
 
 export default function DeepfakeDetective() {
+  const { showToast } = useToast();
   const [gamePhase, setGamePhase] = useState<GamePhase>('AUTH');
   const [uid, setUid] = useState('');
   const [playerData, setPlayerData] = useState<{ name: string | null; stonks: number } | null>(null);
   const [authLoading, setAuthLoading] = useState(false);
-  
+
   const [gameState, setGameState] = useState<GameState>({
     round: 0,
     stonks: 0,
@@ -23,7 +28,21 @@ export default function DeepfakeDetective() {
     showFeedback: false,
   });
 
+
+
   const [usedPairIds, setUsedPairIds] = useState<number[]>([]);
+
+  // Timer Refs for cleanup
+  const feedbackTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const nextRoundTimerRef = useRef<NodeJS.Timeout | null>(null);
+
+  // Cleanup timers on unmount
+  useEffect(() => {
+    return () => {
+      if (feedbackTimerRef.current) clearTimeout(feedbackTimerRef.current);
+      if (nextRoundTimerRef.current) clearTimeout(nextRoundTimerRef.current);
+    };
+  }, []);
 
   // Auth: Check player
   const checkPlayer = async (e: React.FormEvent) => {
@@ -37,7 +56,7 @@ export default function DeepfakeDetective() {
         .single();
 
       if (error || !data) {
-        alert('Player not found!');
+        showToast('Player not found!', 'error');
         setPlayerData(null);
       } else {
         setPlayerData(data);
@@ -50,19 +69,19 @@ export default function DeepfakeDetective() {
 
   // Pay 20 Stonks and start game
   const payAndStart = async () => {
-    if (!playerData || playerData.stonks < 20) {
-      alert('Insufficient Stonks! You need 20 Stonks to play.');
+    if (!playerData || playerData.stonks < GAME_CONSTANTS.ENTRY_FEE) {
+      showToast(`Insufficient Stonks! You need ${GAME_CONSTANTS.ENTRY_FEE} Stonks to play.`, 'error');
       return;
     }
     setAuthLoading(true);
 
     const { error: updateError } = await supabase
       .from('players')
-      .update({ stonks: playerData.stonks - 20 })
+      .update({ stonks: playerData.stonks - GAME_CONSTANTS.ENTRY_FEE })
       .eq('uid', uid);
 
     if (updateError) {
-      alert('Transaction Failed');
+      showToast('Transaction Failed', 'error');
       setAuthLoading(false);
       return;
     }
@@ -72,10 +91,9 @@ export default function DeepfakeDetective() {
       player_uid: uid,
       game_title: 'Deepfake Detective',
       result: 'PLAYING',
-      stonks_change: -20
+      stonks_change: -GAME_CONSTANTS.ENTRY_FEE
     });
-
-    setPlayerData({ ...playerData, stonks: playerData.stonks - 20 });
+    setPlayerData({ ...playerData, stonks: playerData.stonks - GAME_CONSTANTS.ENTRY_FEE });
     setGamePhase('PLAYING');
     setAuthLoading(false);
   };
@@ -98,25 +116,25 @@ export default function DeepfakeDetective() {
   // Generate round data with randomized positions
   const generateRound = (): RoundData => {
     const data = gameData as ImagePair[];
-    
+
     // Filter out already used pairs
     const availablePairs = data.filter(pair => !usedPairIds.includes(pair.id));
-    
+
     // If we've used all pairs, reset
     if (availablePairs.length === 0) {
       setUsedPairIds([]);
       return generateRound();
     }
-    
+
     // Pick a random pair from available ones
     const selectedPair = availablePairs[Math.floor(Math.random() * availablePairs.length)];
-    
+
     // Mark this pair as used
     setUsedPairIds(prev => [...prev, selectedPair.id]);
-    
+
     // Randomize which side gets the fake image
     const leftIsFake = Math.random() < 0.5;
-    
+
     return {
       leftImage: leftIsFake ? selectedPair.fakeImage : selectedPair.realImage,
       rightImage: leftIsFake ? selectedPair.realImage : selectedPair.fakeImage,
@@ -143,11 +161,11 @@ export default function DeepfakeDetective() {
 
     setGameState(prev => ({ ...prev, selectedSide: side }));
 
-    setTimeout(() => {
+    feedbackTimerRef.current = setTimeout(() => {
       const isCorrect = (side === 'left' && gameState.currentRoundData?.leftIsFake) ||
-                        (side === 'right' && !gameState.currentRoundData?.leftIsFake);
+        (side === 'right' && !gameState.currentRoundData?.leftIsFake);
       const newStonks = isCorrect ? gameState.stonks + 8 : gameState.stonks;
-      
+
       setGameState(prev => ({
         ...prev,
         stonks: newStonks,
@@ -155,7 +173,7 @@ export default function DeepfakeDetective() {
       }));
 
       // Move to next round after 2 seconds
-      setTimeout(() => {
+      nextRoundTimerRef.current = setTimeout(() => {
         if (gameState.round >= 5) {
           endGame();
         } else {
@@ -178,7 +196,7 @@ export default function DeepfakeDetective() {
 
     // Calculate winnings
     const totalStonks = gameState.stonks;
-    
+
     if (totalStonks > 0 && uid) {
       // Add winnings to player's stonks
       const { error: updateError } = await supabase
@@ -224,118 +242,71 @@ export default function DeepfakeDetective() {
   // AUTH SCREEN
   if (gamePhase === 'AUTH') {
     return (
-      <div className="min-h-screen bg-white relative overflow-hidden">
-        <div 
-          className="absolute inset-0"
-          style={{
-            backgroundImage: `
+      <StandardAuth
+        onVerify={(id) => { setUid(id); checkPlayer({ preventDefault: () => { } } as any); }}
+        loading={authLoading}
+        title={
+          <h1 className="text-4xl font-black uppercase text-center">
+            <span className="inline-block bg-orange-500 text-white px-6 py-3 -skew-x-6 border-4 border-black">
+              DEEPFAKE DETECTIVE
+            </span>
+          </h1>
+        }
+        themeColor="orange-500"
+        backgroundElement={
+          <div
+            className="absolute inset-0"
+            style={{
+              backgroundImage: `
               linear-gradient(#dbeafe 1px, transparent 1px),
               linear-gradient(90deg, #dbeafe 1px, transparent 1px)
             `,
-            backgroundSize: '24px 24px',
-          }}
-        />
-        
-        <div className="relative z-10 container mx-auto px-4 py-12 flex items-center justify-center min-h-screen">
-          <div className="bg-white border-4 border-black shadow-[8px_8px_0px_0px_rgba(0,0,0,1)] p-8 max-w-md w-full">
-            <h1 className="text-4xl font-black uppercase text-center mb-8">
-              <span className="inline-block bg-orange-500 text-white px-6 py-3 -skew-x-6 border-4 border-black">
-                DEEPFAKE DETECTIVE
-              </span>
-            </h1>
-            
-            <form onSubmit={checkPlayer} className="space-y-4">
-              <div>
-                <label className="block text-lg font-bold uppercase mb-2">
-                  Enter Your UID
-                </label>
-                <input
-                  type="text"
-                  value={uid}
-                  onChange={(e) => setUid(e.target.value)}
-                  placeholder="Your UID..."
-                  className="w-full px-4 py-3 border-4 border-black font-bold text-lg focus:outline-none focus:ring-2 focus:ring-orange-500"
-                  required
-                />
-              </div>
-              
-              <button
-                type="submit"
-                disabled={authLoading}
-                className="w-full bg-orange-500 text-white text-xl font-black uppercase py-3 px-6 border-4 border-black shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] hover:shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] hover:translate-x-[2px] hover:translate-y-[2px] transition-all active:shadow-none active:translate-x-[4px] active:translate-y-[4px] disabled:opacity-50"
-              >
-                {authLoading ? 'CHECKING...' : 'ENTER GAME'}
-              </button>
-            </form>
-          </div>
-        </div>
-      </div>
+              backgroundSize: '24px 24px',
+            }}
+          />
+        }
+      />
     );
   }
 
   // BET SCREEN
-  if (gamePhase === 'BET') {
+  if (gamePhase === 'BET' && playerData) {
     return (
-      <div className="min-h-screen bg-white relative overflow-hidden">
-        <div 
-          className="absolute inset-0"
-          style={{
-            backgroundImage: `
+      <StandardBet
+        playerData={playerData}
+        entryFee={GAME_CONSTANTS.ENTRY_FEE}
+        onPlay={payAndStart}
+        onCancel={resetToAuth}
+        loading={authLoading}
+        themeColor="orange-500"
+        title={
+          <h1 className="text-4xl font-black uppercase text-center">
+            <span className="inline-block bg-orange-500 text-white px-6 py-3 -skew-x-6 border-4 border-black">
+              READY TO DETECT?
+            </span>
+          </h1>
+        }
+        backgroundElement={
+          <div
+            className="absolute inset-0"
+            style={{
+              backgroundImage: `
               linear-gradient(#dbeafe 1px, transparent 1px),
               linear-gradient(90deg, #dbeafe 1px, transparent 1px)
             `,
-            backgroundSize: '24px 24px',
-          }}
-        />
-        
-        <div className="relative z-10 container mx-auto px-4 py-12 flex items-center justify-center min-h-screen">
-          <div className="bg-white border-4 border-black shadow-[8px_8px_0px_0px_rgba(0,0,0,1)] p-8 max-w-md w-full">
-            <h1 className="text-4xl font-black uppercase text-center mb-8">
-              <span className="inline-block bg-orange-500 text-white px-6 py-3 -skew-x-6 border-4 border-black">
-                READY TO DETECT?
-              </span>
-            </h1>
-            
-            <div className="mb-8">
-              <div className="bg-gray-100 border-4 border-black p-4 mb-4">
-                <p className="text-lg font-bold uppercase">Player: {playerData?.name || uid}</p>
-                <p className="text-2xl font-black text-[#22C55E] uppercase">
-                  Stonks: {playerData?.stonks}
-                </p>
-              </div>
-              
-              <div className="bg-orange-500 border-4 border-black p-6 text-white">
-                <p className="text-xl font-black uppercase text-center mb-2">ENTRY FEE</p>
-                <p className="text-5xl font-black text-center">20 STONKS</p>
-              </div>
-              
-              <div className="mt-6 space-y-2 text-sm font-bold">
-                <p>🕵️ 5 Rounds of deepfake detection</p>
-                <p>💰 +8 Stonks per correct detection</p>
-                <p>🎉 Max win: 40 Stonks!</p>
-                <p>🧠 Can you spot the fake?</p>
-              </div>
-            </div>
-
-            <div className="space-y-3">
-              <button
-                onClick={payAndStart}
-                disabled={authLoading || !playerData || playerData.stonks < 20}
-                className="w-full bg-[#22C55E] text-white text-xl font-black uppercase py-3 px-6 border-4 border-black shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] hover:shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] hover:translate-x-[2px] hover:translate-y-[2px] transition-all active:shadow-none active:translate-x-[4px] active:translate-y-[4px] disabled:opacity-50"
-              >
-                {authLoading ? 'PROCESSING...' : 'PAY & PLAY'}
-              </button>
-              
-              <button
-                onClick={resetToAuth}
-                className="w-full bg-gray-300 text-black text-lg font-black uppercase py-2 px-6 border-4 border-black shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] hover:shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] hover:translate-x-[2px] hover:translate-y-[2px] transition-all"
-              >
-                BACK
-              </button>
-            </div>
+              backgroundSize: '24px 24px',
+            }}
+          />
+        }
+        instructions={
+          <div className="space-y-2 text-sm font-bold text-left">
+            <p>🕵️ 5 Rounds of deepfake detection</p>
+            <p>💰 +8 Stonks per correct detection</p>
+            <p>🎉 Max win: 40 Stonks!</p>
+            <p>🧠 Can you spot the fake?</p>
           </div>
-        </div>
-      </div>
+        }
+      />
     );
   }
 
@@ -344,7 +315,7 @@ export default function DeepfakeDetective() {
     const correctCount = gameState.stonks / 8;
     return (
       <div className="min-h-screen bg-white relative overflow-hidden">
-        <div 
+        <div
           className="absolute inset-0"
           style={{
             backgroundImage: `
@@ -354,7 +325,7 @@ export default function DeepfakeDetective() {
             backgroundSize: '24px 24px',
           }}
         />
-        
+
         <div className="relative z-10 container mx-auto px-4 py-12 flex items-center justify-center min-h-screen">
           <div className="bg-white border-4 border-black shadow-[8px_8px_0px_0px_rgba(0,0,0,1)] p-8 max-w-lg w-full">
             <h1 className="text-5xl font-black uppercase text-center mb-8">
@@ -362,7 +333,7 @@ export default function DeepfakeDetective() {
                 CASE CLOSED!
               </span>
             </h1>
-            
+
             <div className="text-center mb-8">
               <p className="text-2xl font-bold uppercase mb-4">DETECTION REPORT</p>
               <div className="bg-orange-500 border-4 border-black inline-block px-8 py-4 mb-4">
@@ -374,9 +345,9 @@ export default function DeepfakeDetective() {
                 {correctCount} / 5 Correct Detections
               </p>
               <p className="text-lg mt-2">
-                {correctCount === 5 ? '🏆 Perfect Detective!' : 
-                 correctCount >= 3 ? '👍 Good Eye!' : 
-                 '🔍 Keep Practicing!'}
+                {correctCount === 5 ? '🏆 Perfect Detective!' :
+                  correctCount >= 3 ? '👍 Good Eye!' :
+                    '🔍 Keep Practicing!'}
               </p>
             </div>
 
@@ -386,7 +357,7 @@ export default function DeepfakeDetective() {
             >
               DETECT AGAIN
             </button>
-            
+
             <button
               onClick={resetToAuth}
               className="w-full bg-gray-300 text-black text-xl font-black uppercase py-3 px-6 border-4 border-black shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] hover:shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] hover:translate-x-[2px] hover:translate-y-[2px] transition-all"
@@ -411,7 +382,7 @@ export default function DeepfakeDetective() {
 
   return (
     <div className="min-h-screen bg-white relative overflow-hidden">
-      <div 
+      <div
         className="absolute inset-0"
         style={{
           backgroundImage: `
@@ -421,7 +392,7 @@ export default function DeepfakeDetective() {
           backgroundSize: '24px 24px',
         }}
       />
-      
+
       <div className="relative z-10 container mx-auto px-4 py-8">
         {/* Header */}
         <div className="mb-8">
@@ -430,12 +401,12 @@ export default function DeepfakeDetective() {
               DEEPFAKE DETECTIVE
             </span>
           </h1>
-          
+
           <div className="flex justify-between items-center max-w-4xl mx-auto">
             <div className="bg-white border-4 border-black px-4 py-2 shadow-[4px_4px_0px_0px_rgba(0,0,0,1)]">
               <span className="text-xl font-bold uppercase">Round: {gameState.round}/5</span>
             </div>
-            
+
             <div className="bg-[#22C55E] border-4 border-black px-4 py-2 shadow-[4px_4px_0px_0px_rgba(0,0,0,1)]">
               <span className="text-xl font-black text-white uppercase">
                 {gameState.stonks} STONKS
@@ -528,11 +499,10 @@ export default function DeepfakeDetective() {
           {/* Feedback Message */}
           {gameState.showFeedback && (
             <div className="text-center">
-              <div className={`inline-block px-6 py-3 border-4 border-black font-black text-2xl uppercase ${
-                ((selectedLeft && isLeftCorrect) || (selectedRight && isRightCorrect))
-                  ? 'bg-green-500 text-white'
-                  : 'bg-red-500 text-white'
-              }`}>
+              <div className={`inline-block px-6 py-3 border-4 border-black font-black text-2xl uppercase ${((selectedLeft && isLeftCorrect) || (selectedRight && isRightCorrect))
+                ? 'bg-green-500 text-white'
+                : 'bg-red-500 text-white'
+                }`}>
                 {((selectedLeft && isLeftCorrect) || (selectedRight && isRightCorrect))
                   ? '🎉 CORRECT! +8 STONKS'
                   : '❌ WRONG! THAT WAS REAL'}

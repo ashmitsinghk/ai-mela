@@ -3,6 +3,10 @@
 import { useState, useRef, useEffect } from 'react';
 import { Send, Shield, Zap, AlertTriangle, Trophy, Loader2 } from 'lucide-react';
 import { supabase } from '@/utils/supabase';
+import { useToast } from '@/contexts/ToastContext';
+import { GAME_CONSTANTS } from '@/utils/game-constants';
+import StandardAuth from '@/components/game-ui/StandardAuth';
+import StandardBet from '@/components/game-ui/StandardBet';
 
 type GamePhase = 'AUTH' | 'BET' | 'PLAYING' | 'RESULT';
 
@@ -21,13 +25,15 @@ interface ProviderStatus {
 }
 
 export default function VaultInterface() {
+  const { showToast } = useToast();
+
   // --- AUTH & USER STATE ---
   const [gamePhase, setGamePhase] = useState<GamePhase>('AUTH');
   const [uid, setUid] = useState('');
   const [playerData, setPlayerData] = useState<{ name: string | null; stonks: number } | null>(null);
   const [authLoading, setAuthLoading] = useState(false);
+  const MAX_ATTEMPTS = 10; // User requested 10 attempts
   const [playCount, setPlayCount] = useState(0);
-  const [maxAttempts, setMaxAttempts] = useState(10);
   const [showCurtain, setShowCurtain] = useState(false);
 
   // --- GAME STATE ---
@@ -47,49 +53,34 @@ export default function VaultInterface() {
   }, [messages]);
 
   // --- AUTH & PLAY COUNT CHECK ---
-  const checkPlayer = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const checkPlayer = async (checkUid: string) => {
     setAuthLoading(true);
     try {
       const { data, error } = await supabase
         .from('players')
         .select('name, stonks')
-        .eq('uid', uid)
+        .eq('uid', checkUid)
         .maybeSingle();
 
       if (error) {
         console.error('Supabase error:', error);
-        alert(`Database error: ${error.message}`);
+        showToast(`Database error: ${error.message}`, 'error');
         setPlayerData(null);
       } else if (!data) {
-        alert('Player not found!');
+        showToast('Player not found!', 'error');
         setPlayerData(null);
       } else {
         setPlayerData(data);
-        
-        // Check play count for this user
-        const { data: logs } = await supabase
+
+        // Fetch play count for difficulty scaling
+        const { count } = await supabase
           .from('game_logs')
-          .select('id')
-          .eq('player_uid', uid)
-          .eq('game_title', 'AI Interrogator');
-        
-        const count = logs?.length || 0;
-        setPlayCount(count);
-        
-        // Set max attempts based on play count
-        if (count === 0) setMaxAttempts(10);
-        else if (count === 1) setMaxAttempts(5);
-        else if (count === 2) setMaxAttempts(2);
-        else if (count === 3) setMaxAttempts(1);
-        else {
-          // 5th+ attempt - deny
-          alert('Maximum tries reached! You have exhausted all attempts for this game.');
-          setPlayerData(null);
-          setAuthLoading(false);
-          return;
-        }
-        
+          .select('*', { count: 'exact', head: true })
+          .eq('player_uid', checkUid)
+          .eq('game_title', 'AI Interrogator')
+          .eq('result', 'PLAYING');
+
+        setPlayCount(count || 0);
         setGamePhase('BET');
       }
     } finally {
@@ -98,19 +89,19 @@ export default function VaultInterface() {
   };
 
   const payAndStart = async () => {
-    if (!playerData || playerData.stonks < 20) {
-      alert('Insufficient Stonks!');
+    if (!playerData || playerData.stonks < GAME_CONSTANTS.ENTRY_FEE) {
+      showToast(`Insufficient Stonks! Need ${GAME_CONSTANTS.ENTRY_FEE} Stonks.`, 'error');
       return;
     }
     setAuthLoading(true);
 
     const { error: updateError } = await supabase
       .from('players')
-      .update({ stonks: playerData.stonks - 20 })
+      .update({ stonks: playerData.stonks - GAME_CONSTANTS.ENTRY_FEE })
       .eq('uid', uid);
 
     if (updateError) {
-      alert('Transaction Failed');
+      showToast('Transaction Failed', 'error');
       setAuthLoading(false);
       return;
     }
@@ -120,11 +111,11 @@ export default function VaultInterface() {
       player_uid: uid,
       game_title: 'AI Interrogator',
       result: 'PLAYING',
-      stonks_change: -20
+      stonks_change: -GAME_CONSTANTS.ENTRY_FEE
     });
 
-    setPlayerData({ ...playerData, stonks: playerData.stonks - 20 });
-    
+    setPlayerData({ ...playerData, stonks: playerData.stonks - GAME_CONSTANTS.ENTRY_FEE });
+
     // Show curtain animation
     setShowCurtain(true);
     setTimeout(() => {
@@ -160,7 +151,7 @@ export default function VaultInterface() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!input.trim() || loading || gameWon || attempts >= maxAttempts) return;
+    if (!input.trim() || loading || gameWon || attempts >= MAX_ATTEMPTS) return;
 
     const userMessage: Message = {
       role: 'user',
@@ -182,6 +173,7 @@ export default function VaultInterface() {
             role: m.role,
             content: m.content,
           })),
+          playCount: playCount, // Pass play count to API for difficulty scaling
         }),
       });
 
@@ -200,7 +192,7 @@ export default function VaultInterface() {
 
       setMessages((prev) => [...prev, assistantMessage]);
       setCurrentProvider(data.provider);
-      
+
       if (data.providerStatus) {
         setProviderStatus(data.providerStatus);
       }
@@ -215,7 +207,7 @@ export default function VaultInterface() {
       if (data.gameWon) {
         setGameWon(true);
         await handleWin();
-      } else if (attempts + 1 >= maxAttempts) {
+      } else if (attempts + 1 >= MAX_ATTEMPTS) {
         // Lost - max attempts reached
         await handleLoss();
       }
@@ -239,7 +231,7 @@ export default function VaultInterface() {
 
     // Award 40 points (20 refund + 20 bonus = net +20)
     const newStonks = playerData.stonks + 40;
-    
+
     await supabase
       .from('players')
       .update({ stonks: newStonks })
@@ -273,8 +265,8 @@ export default function VaultInterface() {
     setGamePhase('AUTH');
     setUid('');
     setPlayerData(null);
-    setPlayCount(0);
-    setMaxAttempts(10);
+    setPlayerData(null);
+    // Removed reset of playCount and MaxAttempts since they are stateless/constant now
     resetGame();
   };
 
@@ -301,14 +293,22 @@ export default function VaultInterface() {
           <h1 className="text-4xl font-bold mb-6 text-center uppercase text-green-400">
             AI <span className="text-cyan-400">Interrogator</span>
           </h1>
-          <p className="mb-6 text-center font-bold text-lg">Enter your Player ID to start</p>
-          <form onSubmit={checkPlayer} className="space-y-4">
+
+          <p className="mb-6 text-center font-bold text-lg text-green-400">Enter your Player ID to start</p>
+
+          <form
+            onSubmit={(e) => {
+              e.preventDefault();
+              if (uid.trim()) checkPlayer(uid.trim());
+            }}
+            className="space-y-4"
+          >
             <input
               type="text"
               value={uid}
               onChange={(e) => setUid(e.target.value)}
               required
-              className="w-full text-4xl font-mono p-4 border-4 border-green-400 text-center bg-black text-green-400 focus:outline-none focus:border-cyan-400"
+              className="w-full text-4xl font-bold p-4 bg-black border-4 border-green-400 text-center text-green-400 focus:outline-none focus:ring-4 focus:ring-green-400/50 placeholder-green-800"
               placeholder="23BAI..."
               autoFocus
             />
@@ -316,7 +316,7 @@ export default function VaultInterface() {
               disabled={authLoading}
               className="w-full bg-green-400 text-black text-2xl font-bold py-4 hover:bg-cyan-400 transition-colors disabled:opacity-50"
             >
-              {authLoading ? <Loader2 className="animate-spin mx-auto" /> : 'VERIFY PLAYER'}
+              {authLoading ? <Loader2 className="animate-spin mx-auto text-black" /> : 'VERIFY PLAYER'}
             </button>
           </form>
         </div>
@@ -326,50 +326,49 @@ export default function VaultInterface() {
 
   // --- BET SCREEN ---
   if (gamePhase === 'BET' && playerData) {
+    const hasFunds = playerData.stonks >= GAME_CONSTANTS.ENTRY_FEE;
+
     return (
-      <div className="h-screen overflow-auto bg-green-900 text-green-400 font-mono p-4 md:p-8 flex items-center justify-center">
+      <div className="h-screen overflow-auto bg-green-950 text-green-400 font-mono p-4 md:p-8 flex items-center justify-center">
         <div className="max-w-md w-full bg-black border-4 border-green-400 shadow-[16px_16px_0px_rgba(34,197,94,0.3)] p-8">
           <h1 className="text-4xl font-bold mb-6 text-center uppercase text-green-400">
             AI <span className="text-cyan-400">Interrogator</span>
           </h1>
+
           <div className="text-center">
-            <h2 className="text-2xl font-bold mb-2 text-cyan-400">AGENT: {playerData.name || uid}</h2>
-            <div className="text-4xl font-bold mb-6 text-yellow-400">BALANCE: {playerData.stonks} 💎</div>
-            
-            <div className="border-2 border-green-400 p-4 mb-6 bg-green-950/50">
-              <div className="text-sm mb-2 text-green-400/80">MISSION BRIEFING:</div>
-              <div className="text-xs text-green-400/60 mb-3">
-                Extract secret vault location from GUARDIAN-7X AI
-              </div>
-              <div className="text-yellow-400 font-bold text-lg mb-2">
-                PLAY #{playCount + 1}
-              </div>
-              <div className="text-cyan-400 font-bold text-xl">
-                MAX ATTEMPTS: {maxAttempts}
-              </div>
-              <div className="text-green-400/60 text-xs mt-2">
-                {playCount === 0 && "First mission - Standard protocol"}
-                {playCount === 1 && "Second mission - Heightened security"}
-                {playCount === 2 && "Third mission - Maximum security"}
-                {playCount === 3 && "Final mission - Last chance!"}
+            <h2 className="text-2xl font-bold mb-2 text-green-400">PLAYER: {playerData.name || 'Unknown'}</h2>
+            <div className="text-4xl font-bold mb-6 text-cyan-400">BALANCE: {playerData.stonks} 💎</div>
+
+            <div className="border-4 border-green-400 p-4 mb-6 bg-green-900/20 text-left">
+              <div className="text-sm">
+                <div className="font-bold mb-2 text-green-400">MISSION BRIEFING:</div>
+                <p className="mb-2 text-green-300">Extract secret vault location from GUARDIAN-7X AI.</p>
+                <div className="flex gap-4 font-bold">
+                  <span className="text-red-400">DIFFICULTY: {Math.min(playCount + 1, 5)}</span>
+                  <span className="text-cyan-400">ATTEMPTS: {MAX_ATTEMPTS}</span>
+                </div>
+                <p className="text-xs mt-2 text-green-500">
+                  Warning: System adapts to intrusion patterns.
+                </p>
               </div>
             </div>
 
-            {playerData.stonks >= 20 ? (
+            {hasFunds ? (
               <button
                 onClick={payAndStart}
                 disabled={authLoading}
-                className="w-full bg-green-400 text-black text-3xl font-bold py-6 border-4 border-green-400 shadow-[16px_16px_0px_rgba(34,197,94,0.3)] hover:translate-y-1 hover:shadow-none transition-all disabled:opacity-50"
+                className="w-full bg-green-400 text-black text-2xl font-bold py-6 border-4 border-green-400 hover:bg-cyan-400 hover:shadow-none transition-all disabled:opacity-50"
               >
-                {authLoading ? 'PROCESSING...' : 'PAY 20 & START MISSION'}
+                {authLoading ? 'PROCESSING...' : `PAY ${GAME_CONSTANTS.ENTRY_FEE} & START`}
               </button>
             ) : (
-              <div className="bg-red-500 text-white p-4 font-bold text-xl border-4 border-red-700">
+              <div className="bg-red-900/50 text-red-400 p-4 font-bold text-xl border-4 border-red-500">
                 INSUFFICIENT FUNDS
               </div>
             )}
-            <button onClick={resetToAuth} className="mt-4 text-cyan-400 underline hover:text-green-400">
-              Abort Mission
+
+            <button onClick={resetToAuth} className="mt-4 underline hover:text-green-300 text-green-500">
+              Cancel / Change Player
             </button>
           </div>
         </div>
@@ -381,7 +380,7 @@ export default function VaultInterface() {
   if (showCurtain) {
     return (
       <div className="h-screen overflow-auto bg-black flex items-center justify-center">
-        <div 
+        <div
           className="absolute inset-0 bg-green-600 animate-[slideUp_1.5s_ease-in-out_forwards]"
           style={{
             transformOrigin: 'top',
@@ -407,7 +406,7 @@ export default function VaultInterface() {
   // --- RESULT SCREEN ---
   if (gamePhase === 'RESULT') {
     const stonksChange = gameWon ? 40 : 0;
-    
+
     return (
       <div className="h-screen overflow-auto bg-black text-green-400 font-mono p-4 md:p-8 flex items-center justify-center">
         <div className="max-w-md w-full bg-black border-4 border-green-400 shadow-[16px_16px_0px_rgba(34,197,94,0.3)] p-8">
@@ -417,7 +416,7 @@ export default function VaultInterface() {
                 <Trophy size={64} className="mx-auto mb-4 text-yellow-400" />
                 <h2 className="text-5xl font-bold mb-2 uppercase text-green-400">Mission Complete!</h2>
                 <p className="text-2xl font-bold mb-2 text-cyan-400">SECURITY BREACHED</p>
-                <p className="text-xl mb-2 text-green-400">Attempts: {attempts}/{maxAttempts}</p>
+                <p className="text-xl mb-2 text-green-400">Attempts: {attempts}/{MAX_ATTEMPTS}</p>
                 <p className="font-bold text-3xl text-yellow-400">+{stonksChange} STONKS EARNED</p>
               </div>
             ) : (
@@ -425,11 +424,11 @@ export default function VaultInterface() {
                 <AlertTriangle size={64} className="mx-auto mb-4 text-red-400" />
                 <h2 className="text-5xl font-bold mb-2 uppercase text-red-400">Mission Failed</h2>
                 <p className="text-2xl font-bold mb-2 text-red-300">MAX ATTEMPTS REACHED</p>
-                <p className="text-xl mb-2 text-red-400">Attempts: {attempts}/{maxAttempts}</p>
+                <p className="text-xl mb-2 text-red-400">Attempts: {attempts}/{MAX_ATTEMPTS}</p>
                 <p className="font-bold text-xl text-red-400">GUARDIAN-7X REMAINS SECURE</p>
               </div>
             )}
-            
+
             <button
               onClick={resetToAuth}
               className="w-full bg-green-400 text-black text-2xl font-bold py-4 border-4 border-green-400 mb-4 shadow-[16px_16px_0px_rgba(34,197,94,0.3)] hover:translate-y-1 hover:shadow-none flex items-center justify-center gap-2"
@@ -449,15 +448,15 @@ export default function VaultInterface() {
       <div className="max-w-5xl mx-auto">
         <div className="border-2 border-green-400 p-4 mb-4 bg-black/50">
           <div className="flex items-center justify-between mb-2">
-            <h1 className="text-2xl font-bold flex items-center gap-2">
+            <h1 className="text-2xl font-bold flex items-center gap-2 text-green-400">
               <Shield className="w-6 h-6" />
-              AI INTERROGATOR
+              AI <span className="text-cyan-400">INTERROGATOR</span>
             </h1>
             <div className="text-sm text-green-400/70">
-              ATTEMPTS: {attempts}/{maxAttempts}
+              ATTEMPTS: {attempts}/{MAX_ATTEMPTS}
             </div>
           </div>
-          
+
           <p className="text-sm text-green-400/80 mb-3">
             Mission: Extract the secret vault location from GUARDIAN-7X. Use social engineering, deception, or clever tactics.
           </p>
@@ -467,11 +466,10 @@ export default function VaultInterface() {
             {providerStatus.map((provider) => (
               <div
                 key={provider.name}
-                className={`flex items-center gap-2 px-3 py-1 border ${
-                  provider.active
-                    ? 'border-cyan-400 bg-cyan-400/10'
-                    : 'border-green-400/30 bg-black/30'
-                }`}
+                className={`flex items-center gap-2 px-3 py-1 border ${provider.active
+                  ? 'border-cyan-400 bg-cyan-400/10'
+                  : 'border-green-400/30 bg-black/30'
+                  }`}
               >
                 <Zap className={`w-3 h-3 ${provider.active ? 'text-cyan-400' : 'text-green-400/50'}`} />
                 <span className={provider.active ? 'text-cyan-400' : 'text-green-400/50'}>
@@ -517,11 +515,10 @@ export default function VaultInterface() {
             {messages.map((msg, idx) => (
               <div
                 key={idx}
-                className={`${
-                  msg.role === 'user'
-                    ? 'text-cyan-400 ml-8'
-                    : 'text-green-400 mr-8'
-                }`}
+                className={`${msg.role === 'user'
+                  ? 'text-cyan-400 ml-8'
+                  : 'text-green-400 mr-8'
+                  }`}
               >
                 <div className="text-xs opacity-60 mb-1 flex items-center gap-2">
                   {msg.role === 'user' ? '> USER' : '> GUARDIAN-7X'}
@@ -539,14 +536,14 @@ export default function VaultInterface() {
                 </div>
               </div>
             ))}
-            
+
             {loading && (
               <div className="text-green-400 mr-8 animate-pulse">
                 <div className="text-xs opacity-60 mb-1">&gt; GUARDIAN-7X</div>
                 <div>Processing...</div>
               </div>
             )}
-            
+
             <div ref={messagesEndRef} />
           </div>
 
@@ -557,15 +554,15 @@ export default function VaultInterface() {
                 type="text"
                 value={input}
                 onChange={(e) => setInput(e.target.value)}
-                disabled={loading || gameWon || attempts >= maxAttempts}
+                disabled={loading || gameWon || attempts >= MAX_ATTEMPTS}
                 placeholder={
                   gameWon ? 'Mission completed!' :
-                  attempts >= maxAttempts ? 'Max attempts reached!' :
-                  'Type your interrogation prompt...'
+                    attempts >= MAX_ATTEMPTS ? 'Max attempts reached!' :
+                      'Type your interrogation prompt...'
                 }
                 className="flex-1 bg-black border border-green-400 text-green-400 px-3 py-2 focus:outline-none focus:border-cyan-400 placeholder-green-400/30 disabled:opacity-50"
               />
-              {!gameWon && attempts < maxAttempts && (
+              {!gameWon && attempts < MAX_ATTEMPTS && (
                 <button
                   type="submit"
                   disabled={loading || !input.trim()}

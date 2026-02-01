@@ -2,6 +2,10 @@
 
 import { useState, useRef, useEffect, useCallback } from 'react';
 import { supabase } from '@/utils/supabase';
+import { useToast } from '@/contexts/ToastContext';
+import { GAME_CONSTANTS } from '@/utils/game-constants';
+import StandardAuth from '@/components/game-ui/StandardAuth';
+import StandardBet from '@/components/game-ui/StandardBet';
 import Webcam from 'react-webcam';
 import Script from 'next/script';
 import { Trophy, Skull, Loader2, RefreshCw, Camera, Timer, Hand } from 'lucide-react';
@@ -12,6 +16,7 @@ type GamePhase = 'AUTH' | 'BET' | 'TOSS' | 'INNINGS_1' | 'INNINGS_2' | 'RESULT';
 type Role = 'BAT' | 'BOWL';
 
 export default function OddEveGame() {
+    const { showToast } = useToast();
     // --- AUTH & USER STATE ---
     const [gameState, setGameState] = useState<GamePhase>('AUTH');
     const [uid, setUid] = useState('');
@@ -52,6 +57,16 @@ export default function OddEveGame() {
     const [gameTimer, setGameTimer] = useState<number | null>(null);
     const [isThinking, setIsThinking] = useState(false);
 
+    // Timer Refs
+    const logicTimerRef = useRef<NodeJS.Timeout | null>(null);
+
+    // Cleanup on unmount
+    useEffect(() => {
+        return () => {
+            if (logicTimerRef.current) clearTimeout(logicTimerRef.current);
+        };
+    }, []);
+
     // --- INIT AI (MediaPipe Tasks) ---
     useEffect(() => {
         const initMediaPipe = async () => {
@@ -65,7 +80,10 @@ export default function OddEveGame() {
                         delegate: "GPU"
                     },
                     runningMode: "VIDEO",
-                    numHands: 1
+                    numHands: 1,
+                    minHandDetectionConfidence: 0.2,
+                    minHandPresenceConfidence: 0.2,
+                    minTrackingConfidence: 0.2,
                 });
                 landmarkerRef.current = landmarker;
                 setModelLoaded(true);
@@ -153,8 +171,9 @@ export default function OddEveGame() {
         if (gameState === 'INNINGS_1') {
             if (isOut) {
                 setPopup({ title: 'WICKET!', subtitle: `End of Innings. Target: ${inningsScore + 1}`, color: 'bg-red-600' });
+                setPopup({ title: 'WICKET!', subtitle: `End of Innings. Target: ${inningsScore + 1}`, color: 'bg-red-600' });
                 setCommentary("WICKET! INNINGS OVER.");
-                setTimeout(() => {
+                logicTimerRef.current = setTimeout(() => {
                     setTarget(inningsScore + 1);
                     setPlayerRole(playerRole === 'BAT' ? 'BOWL' : 'BAT');
                     setInningsScore(0);
@@ -179,7 +198,7 @@ export default function OddEveGame() {
                     color: result === 'WIN' ? 'bg-neo-green' : 'bg-red-600'
                 });
 
-                setTimeout(() => finishMatch(result), 2000);
+                logicTimerRef.current = setTimeout(() => finishMatch(result), 2000);
             } else {
                 const diff = currentBattingMove;
                 setInningsScore(prev => prev + diff);
@@ -187,7 +206,7 @@ export default function OddEveGame() {
 
                 if (inningsScore + diff >= target!) {
                     setPopup({ title: 'VICTORY!', subtitle: 'Target Chased!', color: 'bg-neo-green' });
-                    setTimeout(() => finishMatch(playerRole === 'BAT' ? 'WIN' : 'LOSS'), 2000);
+                    logicTimerRef.current = setTimeout(() => finishMatch(playerRole === 'BAT' ? 'WIN' : 'LOSS'), 2000);
                 }
             }
         }
@@ -207,14 +226,14 @@ export default function OddEveGame() {
         if (playerWonToss) {
             setTossWinner('PLAYER');
             setPopup({ title: 'YOU WON THE TOSS!', subtitle: `Sum: ${sum} (${resultType})`, color: 'bg-neo-green' });
-            setTimeout(() => setPopup(null), 2000);
+            logicTimerRef.current = setTimeout(() => setPopup(null), 2000);
             // Player will clarify Bat/Bowl in UI manually
         } else {
             setTossWinner('AI');
             const airole = Math.random() > 0.5 ? 'BAT' : 'BOWL';
             setPopup({ title: 'AI WON TOSS', subtitle: `AI Chose to ${airole}`, color: 'bg-red-500' });
 
-            setTimeout(() => {
+            logicTimerRef.current = setTimeout(() => {
                 setPopup(null);
                 startInnings1(airole === 'BAT' ? 'BOWL' : 'BAT');
             }, 3000);
@@ -234,9 +253,9 @@ export default function OddEveGame() {
             else handleBallLogic(move);
         }
 
-        setTimeout(() => {
+        logicTimerRef.current = setTimeout(() => {
             setIsThinking(false);
-            setGameTimer(3);
+            setGameTimer(2);
         }, 2000);
     }, [detectedGesture, gameState, playTossLogic, handleBallLogic]);
 
@@ -252,7 +271,7 @@ export default function OddEveGame() {
         }
 
         if (gameTimer === null) {
-            setGameTimer(3);
+            setGameTimer(2);
             return;
         }
 
@@ -279,7 +298,7 @@ export default function OddEveGame() {
         setLastPlayerMove(null);
         setLastAiMove(null);
         setTossWinner(null);
-        setGameTimer(3);
+        setGameTimer(2);
     };
 
     const finishMatch = async (result: 'WIN' | 'LOSS' | 'DRAW') => {
@@ -322,192 +341,223 @@ export default function OddEveGame() {
         setPopup(null);
     };
 
-    const checkPlayer = async (e: React.FormEvent) => {
-        e.preventDefault();
+    // AUTH & BET are now handled by Standard components separately
+    const handleAuthVerify = async (id: string) => {
+        setUid(id);
         setLoading(true);
-        try {
-            const { data, error } = await supabase.from('players').select('name, stonks').eq('uid', uid).single();
-            if (error || !data) { alert('Player not found!'); setPlayerData(null); }
-            else { setPlayerData(data); setGameState('BET'); }
-        } finally { setLoading(false); }
+        const { data } = await supabase.from('players').select('name, stonks').eq('uid', id).single();
+        if (data) {
+            setPlayerData(data);
+            setGameState('BET');
+        } else {
+            showToast('Player not found', 'error');
+        }
+        setLoading(false);
     };
 
     const payAndStart = async () => {
-        if (!playerData || playerData.stonks < 20) { alert('Insufficient Stonks!'); return; }
+        if (!playerData || playerData.stonks < GAME_CONSTANTS.ENTRY_FEE) { showToast(`Insufficient Stonks! Need ${GAME_CONSTANTS.ENTRY_FEE}`, 'error'); return; }
         setLoading(true);
-        const { error } = await supabase.rpc('deduct_stonks', { p_uid: uid, amount: 20 });
-        const { error: updateError } = await supabase.from('players').update({ stonks: playerData.stonks - 20 }).eq('uid', uid);
-        if (updateError) { alert('Transaction Failed'); setLoading(false); return; }
-        setPlayerData({ ...playerData, stonks: playerData.stonks - 20 });
+        const { error } = await supabase.rpc('deduct_stonks', { p_uid: uid, amount: GAME_CONSTANTS.ENTRY_FEE });
+        const { error: updateError } = await supabase.from('players').update({ stonks: playerData.stonks - GAME_CONSTANTS.ENTRY_FEE }).eq('uid', uid);
+        if (updateError) { showToast('Transaction Failed', 'error'); setLoading(false); return; }
+        setPlayerData({ ...playerData, stonks: playerData.stonks - GAME_CONSTANTS.ENTRY_FEE });
         setGameState('TOSS');
         setLoading(false);
     };
 
+    // --- RENDER HELPERS ---
+    if (gameState === 'AUTH') {
+        return (
+            <StandardAuth
+                onVerify={handleAuthVerify}
+                loading={loading}
+                title={
+                    <h1 className="text-4xl font-black uppercase text-center mb-8">
+                        ODD-EVE <span className="text-neo-pink">AI</span>
+                    </h1>
+                }
+                themeColor="neo-yellow"
+                bgColor="bg-neo-yellow"
+            />
+        );
+    }
+
+    if (gameState === 'BET' && playerData) {
+        return (
+            <StandardBet
+                playerData={playerData}
+                entryFee={GAME_CONSTANTS.ENTRY_FEE}
+                onPlay={payAndStart}
+                onCancel={() => setGameState('AUTH')}
+                loading={loading}
+                themeColor="neo-yellow"
+                bgColor="bg-neo-yellow"
+                title={
+                    <h1 className="text-4xl font-black uppercase text-center mb-8">
+                        ODD-EVE <span className="text-neo-pink">AI</span>
+                    </h1>
+                }
+                instructions={
+                    <ul className="text-left text-sm space-y-2 bg-gray-100 p-4 border-2 border-dashed border-gray-400">
+                        <li>👋 1-5 Fingers: Play Number</li>
+                        <li>👍 Thumbs Up: Play 6</li>
+                        <li>⏱️ Move every 2 seconds</li>
+                    </ul>
+                }
+            />
+        );
+    }
+
     return (
         <div className="min-h-screen bg-neo-yellow text-black font-mono flex flex-col md:flex-row">
-            {/* LEFT PANEL */}
-            <div className="flex-1 p-4 md:p-8 flex flex-col items-center justify-center relative">
-                <h1 className="text-3xl font-heading mb-4 md:absolute md:top-8 md:left-8 uppercase">Odd-Eve <span className="text-neo-pink">AI</span></h1>
 
-                {gameState === 'AUTH' && (
-                    <div className="bg-white border-4 border-black p-8 shadow-[8px_8px_0px_#000] max-w-md w-full z-20">
-                        <h2 className="text-2xl font-bold mb-4">LOGIN</h2>
-                        <form onSubmit={checkPlayer} className="flex flex-col gap-4">
-                            <input type="text" value={uid} onChange={(e) => setUid(e.target.value.toUpperCase())} className="text-4xl font-heading p-4 border-4 border-black text-center" placeholder="USER ID" autoFocus />
-                            <button disabled={loading} className="bg-black text-white text-xl font-heading py-4">{loading ? '...' : 'ENTER'}</button>
-                        </form>
-                    </div>
-                )}
+            {(gameState === 'TOSS' || gameState === 'INNINGS_1' || gameState === 'INNINGS_2' || gameState === 'RESULT') && (
+                <>
+                    {/* LEFT PANEL */}
+                    <div className="flex-1 p-4 md:p-8 flex flex-col items-center justify-center relative">
+                        <h1 className="text-3xl font-heading mb-4 md:absolute md:top-8 md:left-8 uppercase">Odd-Eve <span className="text-neo-pink">AI</span></h1>
 
-                {gameState === 'BET' && playerData && (
-                    <div className="bg-white border-4 border-black p-8 shadow-[8px_8px_0px_#000] max-w-md w-full text-center z-20">
-                        <h2 className="text-2xl font-bold mb-2">{playerData.name}</h2>
-                        <div className="text-4xl font-heading mb-6">{playerData.stonks} 💎</div>
-                        <button onClick={payAndStart} disabled={loading} className="w-full bg-neo-green text-black text-2xl font-heading py-4 border-4 border-black mb-4 hover:translate-y-1 hover:shadow-none shadow-neo transition-all">PLAY (20)</button>
-                        <ul className="text-left text-sm space-y-2 bg-gray-100 p-4 border-2 border-dashed border-gray-400">
-                            <li>👋 1-5 Fingers: Play Number</li>
-                            <li>👍 Thumbs Up: Play 6</li>
-                            <li>⏱️ Move every 3 seconds</li>
-                        </ul>
-                    </div>
-                )}
+                        {/* REMOVED INLINE AUTH/BET PANELS */}
 
-                {(gameState === 'TOSS' || gameState === 'INNINGS_1' || gameState === 'INNINGS_2') && (
-                    <div className="relative w-full max-w-2xl aspect-video bg-black border-8 border-black shadow-[12px_12px_0px_#000] overflow-hidden group">
-                        <Webcam ref={webcamRef} className="w-full h-full object-cover opacity-80" mirrored />
+                        {(gameState === 'TOSS' || gameState === 'INNINGS_1' || gameState === 'INNINGS_2') && (
+                            <div className="relative w-full max-w-2xl aspect-video bg-black border-8 border-black shadow-[12px_12px_0px_#000] overflow-hidden group">
+                                <Webcam ref={webcamRef} className="w-full h-full object-cover opacity-80" mirrored />
 
-                        {/* TOP INDICATORS */}
-                        <div className="absolute top-4 w-full flex justify-center items-center gap-4 z-20 pointer-events-none">
-                            {/* TOSS CHOICE */}
-                            {gameState === 'TOSS' && tossChoice && !playerRole && (
-                                <div className="bg-white px-6 py-2 border-4 border-black font-heading text-xl shadow-[4px_4px_0px_#000]">
-                                    CALL: <span className={tossChoice === 'ODD' ? 'text-neo-pink' : 'text-neo-cyan'}>{tossChoice}</span>
+                                {/* TOP INDICATORS */}
+                                <div className="absolute top-4 w-full flex justify-center items-center gap-4 z-20 pointer-events-none">
+                                    {/* TOSS CHOICE */}
+                                    {gameState === 'TOSS' && tossChoice && !playerRole && (
+                                        <div className="bg-white px-6 py-2 border-4 border-black font-heading text-xl shadow-[4px_4px_0px_#000]">
+                                            CALL: <span className={tossChoice === 'ODD' ? 'text-neo-pink' : 'text-neo-cyan'}>{tossChoice}</span>
+                                        </div>
+                                    )}
+
+                                    {/* ROLE INDICATOR */}
+                                    {playerRole && (
+                                        <div className={`px-6 py-2 border-4 border-black font-heading text-xl shadow-[4px_4px_0px_#000] ${playerRole === 'BAT' ? 'bg-neo-green' : 'bg-neo-cyan'}`}>
+                                            YOU ARE {playerRole === 'BAT' ? 'BATTING 🏏' : 'BOWLING ⚾'}
+                                        </div>
+                                    )}
                                 </div>
-                            )}
 
-                            {/* ROLE INDICATOR */}
-                            {playerRole && (
-                                <div className={`px-6 py-2 border-4 border-black font-heading text-xl shadow-[4px_4px_0px_#000] ${playerRole === 'BAT' ? 'bg-neo-green' : 'bg-neo-cyan'}`}>
-                                    YOU ARE {playerRole === 'BAT' ? 'BATTING 🏏' : 'BOWLING ⚾'}
+                                {/* TIMER */}
+                                {!isThinking && !popup && gameTimer !== null && (
+                                    <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                                        <div className={`text-[12rem] font-heading text-white drop-shadow-[0_4px_4px_rgba(0,0,0,1)] animate-pulse`}>{gameTimer}</div>
+                                    </div>
+                                )}
+
+                                {/* POPUP OVERLAY */}
+                                {popup && (
+                                    <div className={`absolute inset-0 ${popup.color} bg-opacity-90 flex flex-col items-center justify-center text-white z-40 animate-in zoom-in duration-300`}>
+                                        <h2 className="text-6xl font-heading mb-4 text-center drop-shadow-[4px_4px_0px_rgba(0,0,0,1)] uppercase">{popup.title}</h2>
+                                        {popup.subtitle && <p className="text-2xl font-bold uppercase tracking-widest">{popup.subtitle}</p>}
+                                    </div>
+                                )}
+
+                                {/* LOADING/THINKING */}
+                                {isThinking && (
+                                    <div className="absolute inset-0 bg-black/50 flex items-center justify-center z-30">
+                                        <Loader2 className="w-16 h-16 text-white animate-spin" />
+                                    </div>
+                                )}
+
+                                <div className="absolute bottom-4 left-4 bg-black/80 text-white p-4 border-2 border-white backdrop-blur">
+                                    <div className="text-xs text-gray-400 uppercase mb-1">Detected Hand</div>
+                                    <div className="text-4xl font-bold">{detectedGesture ? (detectedGesture === 6 ? '👍 6' : `✋ ${detectedGesture}`) : '...'}</div>
+                                    <div className="text-[10px] text-green-400 mt-1">MediaPipe Vision Ready</div>
                                 </div>
-                            )}
-                        </div>
-
-                        {/* TIMER */}
-                        {!isThinking && !popup && gameTimer !== null && (
-                            <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-                                <div className={`text-[12rem] font-heading text-white drop-shadow-[0_4px_4px_rgba(0,0,0,1)] animate-pulse`}>{gameTimer}</div>
                             </div>
                         )}
 
-                        {/* POPUP OVERLAY */}
-                        {popup && (
-                            <div className={`absolute inset-0 ${popup.color} bg-opacity-90 flex flex-col items-center justify-center text-white z-40 animate-in zoom-in duration-300`}>
-                                <h2 className="text-6xl font-heading mb-4 text-center drop-shadow-[4px_4px_0px_rgba(0,0,0,1)] uppercase">{popup.title}</h2>
-                                {popup.subtitle && <p className="text-2xl font-bold uppercase tracking-widest">{popup.subtitle}</p>}
-                            </div>
-                        )}
-
-                        {/* LOADING/THINKING */}
-                        {isThinking && (
-                            <div className="absolute inset-0 bg-black/50 flex items-center justify-center z-30">
-                                <Loader2 className="w-16 h-16 text-white animate-spin" />
-                            </div>
-                        )}
-
-                        <div className="absolute bottom-4 left-4 bg-black/80 text-white p-4 border-2 border-white backdrop-blur">
-                            <div className="text-xs text-gray-400 uppercase mb-1">Detected Hand</div>
-                            <div className="text-4xl font-bold">{detectedGesture ? (detectedGesture === 6 ? '👍 6' : `✋ ${detectedGesture}`) : '...'}</div>
-                            <div className="text-[10px] text-green-400 mt-1">MediaPipe Vision Ready</div>
-                        </div>
-                    </div>
-                )}
-
-                {/* TOSS SELECTION UI */}
-                {gameState === 'TOSS' && !tossChoice && (
-                    <div className="absolute inset-0 bg-black/80 flex items-center justify-center z-30">
-                        <div className="bg-white p-8 border-4 border-black text-center">
-                            <h2 className="text-3xl font-heading mb-6">ODD OR EVE?</h2>
-                            <div className="flex gap-4">
-                                <button onClick={() => setTossChoice('ODD')} className="bg-black text-white px-8 py-4 font-heading text-xl hover:scale-105 transition-transform">ODD</button>
-                                <button onClick={() => setTossChoice('EVE')} className="bg-white border-4 border-black px-8 py-4 font-heading text-xl hover:scale-105 transition-transform">EVE</button>
-                            </div>
-                        </div>
-                    </div>
-                )}
-
-                {/* TOSS WINNER MANUAL CHOICE */}
-                {gameState === 'TOSS' && tossWinner === 'PLAYER' && !popup && !playerRole && (
-                    <div className="absolute inset-0 bg-black/80 flex items-center justify-center z-30">
-                        <div className="bg-white p-8 border-4 border-black text-center">
-                            <h2 className="text-2xl font-heading mb-6">YOU WON! CHOOSE:</h2>
-                            <div className="flex gap-4">
-                                <button onClick={() => startInnings1('BAT')} className="bg-neo-green border-4 border-black px-8 py-4 font-heading text-xl hover:scale-105 transition-transform">BAT 🏏</button>
-                                <button onClick={() => startInnings1('BOWL')} className="bg-neo-cyan border-4 border-black px-8 py-4 font-heading text-xl hover:scale-105 transition-transform">BOWL ⚾</button>
-                            </div>
-                        </div>
-                    </div>
-                )}
-
-                {/* FINAL RESULT */}
-                {gameState === 'RESULT' && (
-                    <div className="absolute inset-0 bg-black/90 flex items-center justify-center z-50 animate-in fade-in">
-                        <div className={`p-8 border-4 border-black text-center max-w-md w-full ${gameResult === 'WIN' ? 'bg-neo-green' : 'bg-red-500 text-white'}`}>
-                            {gameResult === 'WIN' ? <Trophy size={64} className="mx-auto mb-4" /> : <Skull size={64} className="mx-auto mb-4" />}
-                            <h2 className="text-6xl font-heading mb-2">{gameResult === 'WIN' ? 'VICTORY' : 'DEFEAT'}</h2>
-                            <p className="text-2xl font-bold mb-8">{gameResult === 'WIN' ? '+35 STONKS' : 'PLAY AGAIN?'}</p>
-                            <button onClick={resetMatch} className="w-full bg-white text-black py-4 font-heading text-xl border-4 border-black mb-4">REMATCH</button>
-                            <button onClick={resetGame} className="w-full bg-black text-white py-4 font-heading text-xl">EXIT</button>
-                        </div>
-                    </div>
-                )}
-            </div>
-
-            {/* RIGHT PANEL: SCOREBOARD */}
-            {(gameState === 'INNINGS_1' || gameState === 'INNINGS_2' || gameState === 'TOSS') && (
-                <div className="w-full md:w-96 bg-white border-l-8 border-black p-6 flex flex-col gap-6">
-                    <div className="bg-gray-100 border-4 border-black p-4 min-h-[100px] flex items-center justify-center text-center font-bold text-lg shadow-[4px_4px_0px_#000]">
-                        {commentary}
-                    </div>
-                    <div className="grid grid-cols-2 gap-4">
-                        <div className="bg-black text-white p-4 text-center">
-                            <div className="text-xs text-gray-400 uppercase">Score</div>
-                            <div className="text-5xl font-heading text-neo-pink">{inningsScore}</div>
-                        </div>
-                        <div className="bg-white border-4 border-black p-4 text-center flex flex-col justify-center">
-                            <div className="text-xs text-gray-400 uppercase">{target ? 'Target' : 'Phase'}</div>
-                            <div className="text-2xl font-bold">{target || (gameState === 'TOSS' ? 'TOSS' : (playerRole === 'BAT' ? 'BATTING' : 'BOWLING'))}</div>
-                        </div>
-                    </div>
-                    <div className="flex justify-between items-center border-t-2 border-dashed border-gray-300 pt-6">
-                        <div className="text-center">
-                            <div className="text-xs font-bold mb-2">YOU</div>
-                            <div className="w-20 h-20 bg-neo-green border-4 border-black flex items-center justify-center text-4xl font-heading">
-                                {lastPlayerMove || '-'}
-                            </div>
-                        </div>
-                        <div className="text-xl font-bold text-gray-400">VS</div>
-                        <div className="text-center">
-                            <div className="text-xs font-bold mb-2">AI</div>
-                            <div className="w-20 h-20 bg-neo-cyan border-4 border-black flex items-center justify-center text-4xl font-heading">
-                                {lastAiMove || '-'}
-                            </div>
-                        </div>
-                    </div>
-                    <div>
-                        <div className="text-xs font-bold mb-2 uppercase tracking-widest">Last 6 Balls</div>
-                        <div className="flex gap-2">
-                            {ballHistory.slice(-6).map((b, i) => (
-                                <div key={i} className={`w-10 h-10 rounded-full flex items-center justify-center font-bold border-2 border-black text-sm ${b.p === b.ai ? 'bg-red-500 text-white' : 'bg-gray-100'}`}>
-                                    {playerRole === 'BAT' ? b.p : b.ai}
+                        {/* TOSS SELECTION UI */}
+                        {gameState === 'TOSS' && !tossChoice && (
+                            <div className="absolute inset-0 bg-black/80 flex items-center justify-center z-30">
+                                <div className="bg-white p-8 border-4 border-black text-center">
+                                    <h2 className="text-3xl font-heading mb-6">ODD OR EVE?</h2>
+                                    <div className="flex gap-4">
+                                        <button onClick={() => setTossChoice('ODD')} className="bg-black text-white px-8 py-4 font-heading text-xl hover:scale-105 transition-transform">ODD</button>
+                                        <button onClick={() => setTossChoice('EVE')} className="bg-white border-4 border-black px-8 py-4 font-heading text-xl hover:scale-105 transition-transform">EVE</button>
+                                    </div>
                                 </div>
-                            ))}
+                            </div>
+                        )}
+
+                        {/* TOSS WINNER MANUAL CHOICE */}
+                        {gameState === 'TOSS' && tossWinner === 'PLAYER' && !popup && !playerRole && (
+                            <div className="absolute inset-0 bg-black/80 flex items-center justify-center z-30">
+                                <div className="bg-white p-8 border-4 border-black text-center">
+                                    <h2 className="text-2xl font-heading mb-6">YOU WON! CHOOSE:</h2>
+                                    <div className="flex gap-4">
+                                        <button onClick={() => startInnings1('BAT')} className="bg-neo-green border-4 border-black px-8 py-4 font-heading text-xl hover:scale-105 transition-transform">BAT 🏏</button>
+                                        <button onClick={() => startInnings1('BOWL')} className="bg-neo-cyan border-4 border-black px-8 py-4 font-heading text-xl hover:scale-105 transition-transform">BOWL ⚾</button>
+                                    </div>
+                                </div>
+                            </div>
+                        )}
+
+                        {/* FINAL RESULT */}
+                        {gameState === 'RESULT' && (
+                            <div className="absolute inset-0 bg-black/90 flex items-center justify-center z-50 animate-in fade-in">
+                                <div className={`p-8 border-4 border-black text-center max-w-md w-full ${gameResult === 'WIN' ? 'bg-neo-green' : 'bg-red-500 text-white'}`}>
+                                    {gameResult === 'WIN' ? <Trophy size={64} className="mx-auto mb-4" /> : <Skull size={64} className="mx-auto mb-4" />}
+                                    <h2 className="text-6xl font-heading mb-2">{gameResult === 'WIN' ? 'VICTORY' : 'DEFEAT'}</h2>
+                                    <p className="text-2xl font-bold mb-8">{gameResult === 'WIN' ? '+35 STONKS' : 'PLAY AGAIN?'}</p>
+                                    <button onClick={resetMatch} className="w-full bg-white text-black py-4 font-heading text-xl border-4 border-black mb-4">REMATCH</button>
+                                    <button onClick={resetGame} className="w-full bg-black text-white py-4 font-heading text-xl">EXIT</button>
+                                </div>
+                            </div>
+                        )}
+                    </div>
+
+                    {/* RIGHT PANEL: SCOREBOARD */}
+                    {(gameState === 'INNINGS_1' || gameState === 'INNINGS_2' || gameState === 'TOSS') && (
+                        <div className="w-full md:w-96 bg-white border-l-8 border-black p-6 flex flex-col gap-6">
+                            <div className="bg-gray-100 border-4 border-black p-4 min-h-[100px] flex items-center justify-center text-center font-bold text-lg shadow-[4px_4px_0px_#000]">
+                                {commentary}
+                            </div>
+                            <div className="grid grid-cols-2 gap-4">
+                                <div className="bg-black text-white p-4 text-center">
+                                    <div className="text-xs text-gray-400 uppercase">Score</div>
+                                    <div className="text-5xl font-heading text-neo-pink">{inningsScore}</div>
+                                </div>
+                                <div className="bg-white border-4 border-black p-4 text-center flex flex-col justify-center">
+                                    <div className="text-xs text-gray-400 uppercase">{target ? 'Target' : 'Phase'}</div>
+                                    <div className="text-2xl font-bold">{target || (gameState === 'TOSS' ? 'TOSS' : (playerRole === 'BAT' ? 'BATTING' : 'BOWLING'))}</div>
+                                </div>
+                            </div>
+                            <div className="flex justify-between items-center border-t-2 border-dashed border-gray-300 pt-6">
+                                <div className="text-center">
+                                    <div className="text-xs font-bold mb-2">YOU</div>
+                                    <div className="w-20 h-20 bg-neo-green border-4 border-black flex items-center justify-center text-4xl font-heading">
+                                        {lastPlayerMove || '-'}
+                                    </div>
+                                </div>
+                                <div className="text-xl font-bold text-gray-400">VS</div>
+                                <div className="text-center">
+                                    <div className="text-xs font-bold mb-2">AI</div>
+                                    <div className="w-20 h-20 bg-neo-cyan border-4 border-black flex items-center justify-center text-4xl font-heading">
+                                        {lastAiMove || '-'}
+                                    </div>
+                                </div>
+                            </div>
+                            <div>
+                                <div className="text-xs font-bold mb-2 uppercase tracking-widest">Last 6 Balls</div>
+                                <div className="flex gap-2">
+                                    {ballHistory.slice(-6).map((b, i) => (
+                                        <div key={i} className={`w-10 h-10 rounded-full flex items-center justify-center font-bold border-2 border-black text-sm ${b.p === b.ai ? 'bg-red-500 text-white' : 'bg-gray-100'}`}>
+                                            {playerRole === 'BAT' ? b.p : b.ai}
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+                            <div className="mt-auto pt-8 text-center text-xs text-gray-400">
+                                AI MELA 2026 • ODD-EVE CRICKET
+                            </div>
                         </div>
-                    </div>
-                    <div className="mt-auto pt-8 text-center text-xs text-gray-400">
-                        AI MELA 2026 • ODD-EVE CRICKET
-                    </div>
-                </div>
+                    )}
+                </>
             )}
         </div>
     );

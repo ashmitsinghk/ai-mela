@@ -64,15 +64,8 @@ Rules for Fakes:
 
   } catch (error: any) {
     console.error('❌ Headline generation error:', error);
-
-    // Fallback: Return the real headline with generic fakes
-    return {
-      real: realHeadline,
-      fakes: [
-        'Scientists discover new species of bacteria that thrives on plastic waste',
-        'Local mayor implements mandatory nap time for all city employees',
-      ],
-    };
+    console.log('🔄 Attempting fallback to Gemini...');
+    return await generateFakeHeadlinesWithGemini(realHeadline);
   }
 }
 

@@ -4,6 +4,10 @@ import { useState, useRef, useEffect, useCallback } from 'react';
 import Webcam from 'react-webcam';
 import { useRouter } from 'next/navigation';
 import { supabase } from '@/utils/supabase';
+import { useToast } from '@/contexts/ToastContext';
+import { GAME_CONSTANTS } from '@/utils/game-constants';
+import StandardAuth from '@/components/game-ui/StandardAuth';
+import StandardBet from '@/components/game-ui/StandardBet';
 import { Camera, Timer, CheckCircle, XCircle, ArrowRight, Loader2 } from 'lucide-react';
 
 const ITEMS = [
@@ -30,26 +34,32 @@ const ITEMS = [
 ];
 
 export default function ScavengerHunt() {
+    const { showToast } = useToast();
     const router = useRouter();
     const webcamRef = useRef<Webcam>(null);
-
-    const [gameState, setGameState] = useState<'LOBBY' | 'PLAYING' | 'VERIFYING' | 'FINISHED'>('LOBBY');
+    const [gameState, setGameState] = useState<'AUTH' | 'BET' | 'PLAYING' | 'VERIFYING' | 'FINISHED'>('AUTH');
     const [timeLeft, setTimeLeft] = useState(90);
     const [itemTimeLeft, setItemTimeLeft] = useState(9);
     const [score, setScore] = useState(0);
     const [currentItem, setCurrentItem] = useState(ITEMS[0]);
     const [feedback, setFeedback] = useState<'NONE' | 'CORRECT' | 'WRONG'>('NONE');
     const [uid, setUid] = useState<string | null>(null);
+    const [playerData, setPlayerData] = useState<{ name: string | null; stonks: number } | null>(null);
+    const [loading, setLoading] = useState(false);
 
+    // Timer refs
+    const feedbackTimerRef = useRef<NodeJS.Timeout | null>(null);
+
+    // Cleanup on unmount
     useEffect(() => {
-        if (typeof window !== 'undefined') {
-            const user = localStorage.getItem('user_uid');
-            if (!user) {
-                router.push('/login');
-                return;
-            }
-            setUid(user);
-        }
+        return () => {
+            if (feedbackTimerRef.current) clearTimeout(feedbackTimerRef.current);
+        };
+    }, []);
+
+    // Use StandardAuth instead
+    useEffect(() => {
+        // init
     }, [router]);
 
     useEffect(() => {
@@ -73,52 +83,34 @@ export default function ScavengerHunt() {
     }, [itemTimeLeft, gameState]);
 
     const startGame = async () => {
-        if (!uid) return;
+        if (!uid || !playerData) return;
+        setLoading(true);
 
-        // Deduct 20 Stonks
-        const { data: userData, error: fetchError } = await supabase
-            .from('players')
-            .select('stonks')
-            .eq('uid', uid)
-            .single();
+        try {
+            const { error: updateError } = await supabase
+                .from('players')
+                .update({ stonks: playerData.stonks - GAME_CONSTANTS.ENTRY_FEE })
+                .eq('uid', uid);
 
-        if (fetchError) {
-            alert(`Error fetching profile: ${fetchError.message}`);
-            return;
+            if (updateError) throw updateError;
+
+            // Log the game start fee
+            await supabase.from('game_logs').insert({
+                player_uid: uid,
+                game_title: 'Emoji Scavenger Hunt (Entry)',
+                result: 'LOSS',
+                stonks_change: -GAME_CONSTANTS.ENTRY_FEE
+            });
+
+            setScore(0);
+            setTimeLeft(90);
+            nextItem();
+            setGameState('PLAYING');
+        } catch (e) {
+            showToast('Failed to start game', 'error');
+        } finally {
+            setLoading(false);
         }
-
-        if (!userData) {
-            alert('User profile not found. Please log in again.');
-            return;
-        }
-
-        if (userData.stonks < 20) {
-            alert(`Not enough stonks! You have ${userData.stonks}, but need 20.`);
-            return;
-        }
-
-        const { error: updateError } = await supabase
-            .from('players')
-            .update({ stonks: userData.stonks - 20 })
-            .eq('uid', uid);
-
-        if (updateError) {
-            alert('Transaction failed');
-            return;
-        }
-
-        // Log the game start fee
-        await supabase.from('game_logs').insert({
-            player_uid: uid,
-            game_title: 'Emoji Scavenger Hunt (Entry)',
-            result: 'LOSS',
-            stonks_change: -20
-        });
-
-        setScore(0);
-        setTimeLeft(90);
-        nextItem();
-        setGameState('PLAYING');
     };
 
     const nextItem = () => {
@@ -150,7 +142,7 @@ export default function ScavengerHunt() {
             if (data.match) {
                 setFeedback('CORRECT');
                 setScore((prev) => prev + 4);
-                setTimeout(() => {
+                feedbackTimerRef.current = setTimeout(() => {
                     if (score + 4 >= 40) {
                         endGame(score + 4);
                     } else {
@@ -160,7 +152,7 @@ export default function ScavengerHunt() {
                 }, 1500);
             } else {
                 setFeedback('WRONG');
-                setTimeout(() => {
+                feedbackTimerRef.current = setTimeout(() => {
                     setFeedback('NONE');
                     nextItem();
                     setGameState('PLAYING');
@@ -175,7 +167,7 @@ export default function ScavengerHunt() {
             // But timer might be 0? itemTimeLeft needs reset.
             setItemTimeLeft(9);
             if (e.message?.includes('429') || e.message?.includes('Too Many Requests')) {
-                alert('Server is busy (Rate Limit). Please wait 10 seconds and try again.');
+                showToast('Server is busy (Rate Limit). Please wait 10 seconds and try again.', 'warning');
             }
         }
     };
@@ -213,34 +205,60 @@ export default function ScavengerHunt() {
                 ← EXIT
             </button>
 
-            {gameState === 'LOBBY' && (
-                <div className="flex-1 flex flex-col items-center justify-center p-6 text-center space-y-6">
-                    <h1 className="text-4xl md:text-6xl font-heading text-white mb-4 animate-pulse">
-                        EMOJI SCAVENGER HUNT
-                    </h1>
-                    <div className="text-6xl mb-6">🕵️‍♂️📸</div>
-                    <div className="bg-gray-900 border-4 border-neo-green p-6 max-w-sm w-full">
-                        <p className="mb-4 text-lg">Find items in real life that match the emojis!</p>
-                        <ul className="text-left space-y-2 text-sm text-gray-400 mb-6">
-                            <li>• Cost: 20 Stonks</li>
+            {gameState === 'AUTH' && (
+                <StandardAuth
+                    onVerify={async (id) => {
+                        setUid(id);
+                        setLoading(true);
+                        const { data } = await supabase.from('players').select('*').eq('uid', id).single();
+                        if (data) {
+                            setPlayerData(data);
+                            setGameState('BET');
+                        } else {
+                            showToast('Player not found', 'error');
+                        }
+                        setLoading(false);
+                    }}
+                    loading={loading}
+                    title={
+                        <h1 className="text-4xl md:text-6xl font-heading text-white mb-4 animate-pulse">
+                            EMOJI SCAVENGER HUNT
+                        </h1>
+                    }
+                    themeColor="neo-green"
+                    bgColor="bg-black"
+                />
+            )}
+
+            {gameState === 'BET' && playerData && (
+                <StandardBet
+                    playerData={playerData}
+                    entryFee={GAME_CONSTANTS.ENTRY_FEE}
+                    onPlay={startGame}
+                    onCancel={() => setGameState('AUTH')}
+                    loading={loading}
+                    themeColor="neo-green"
+                    bgColor="bg-black"
+                    title={
+                        <h1 className="text-4xl md:text-6xl font-heading text-white mb-4">
+                            READY?
+                        </h1>
+                    }
+                    instructions={
+                        <ul className="text-left space-y-2 text-sm text-gray-800 mb-6">
+                            <li>• Find items in real life!</li>
                             <li>• Time: 90 Seconds</li>
                             <li>• Reward: +4 Stonks per item</li>
                             <li>• Max Reward: 40 Stonks</li>
                         </ul>
-                        <button
-                            onClick={startGame}
-                            className="w-full bg-neo-green text-black font-heading text-2xl py-4 hover:scale-105 transition-transform"
-                        >
-                            PLAY (-20 STONKS)
-                        </button>
-                    </div>
-                </div>
+                    }
+                />
             )}
 
             {(gameState === 'PLAYING' || gameState === 'VERIFYING') && (
                 <div className="flex-1 relative flex flex-col">
                     {/* HUD */}
-                    <div className="absolute top-0 left-0 right-0 z-10 p-4 flex justify-between items-start pointer-events-none">
+                    <div className="absolute top-14 left-0 right-0 z-10 p-4 flex justify-between items-start pointer-events-none">
                         <div className="bg-black/80 text-white p-2 border-2 border-white">
                             <div className="text-xs text-gray-400">TIME</div>
                             <div className={`text-2xl font-bold ${timeLeft < 10 ? 'text-red-500 animate-pulse' : ''}`}>{timeLeft}s</div>
@@ -318,13 +336,13 @@ export default function ScavengerHunt() {
                             </div>
                             <div className="flex justify-between items-center text-red-500 text-sm">
                                 <span>Entry Fee</span>
-                                <span>-20 Stonks</span>
+                                <span>-{GAME_CONSTANTS.ENTRY_FEE} Stonks</span>
                             </div>
                         </div>
 
                         <div className="mt-8 grid grid-cols-2 gap-4">
                             <button
-                                onClick={() => { setGameState('LOBBY'); }}
+                                onClick={() => { setGameState('BET'); }}
                                 className="bg-black text-white p-3 font-bold hover:bg-gray-800"
                             >
                                 PLAY AGAIN

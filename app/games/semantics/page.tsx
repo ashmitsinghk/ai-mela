@@ -4,6 +4,10 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useSemanticSimilarity } from './hooks/useSemanticSimilarity';
 import { Trophy, RefreshCw, Loader2 } from 'lucide-react';
 import { supabase } from '@/utils/supabase';
+import { useToast } from '@/contexts/ToastContext';
+import { GAME_CONSTANTS } from '@/utils/game-constants';
+import StandardAuth from '@/components/game-ui/StandardAuth';
+import StandardBet from '@/components/game-ui/StandardBet';
 
 type GamePhase = 'AUTH' | 'BET' | 'PLAYING' | 'RESULT';
 
@@ -15,7 +19,7 @@ interface Word {
 }
 
 const WORD_POOL: string[] = [
-  'happy', 'joyful', 'cheerful', 'delighted', 
+  'happy', 'joyful', 'cheerful', 'delighted',
   'sad', 'unhappy', 'sorrowful', 'melancholy',
   'car', 'vehicle', 'automobile', 'truck',
   'house', 'home', 'building', 'residence',
@@ -35,7 +39,7 @@ const WORD_POOL: string[] = [
   'slow', 'sluggish', 'gradual', 'leisurely',
   'big', 'large', 'huge', 'enormous',
   'small', 'tiny', 'little', 'miniature',
-  
+
   // Add more diverse words
   'brilliant', 'intelligent', 'smart', 'clever',
   'strong', 'powerful', 'mighty', 'robust',
@@ -53,7 +57,7 @@ const WORD_POOL: string[] = [
   'old', 'ancient', 'aged', 'elderly',
   'young', 'youthful', 'juvenile', 'adolescent',
   'new', 'fresh', 'novel', 'modern',
-  
+
   // Nature & Elements
   'fire', 'flame', 'blaze', 'inferno',
   'rain', 'shower', 'drizzle', 'downpour',
@@ -75,7 +79,7 @@ const WORD_POOL: string[] = [
   'meadow', 'field', 'prairie', 'grassland',
   'valley', 'canyon', 'gorge', 'ravine',
   'cave', 'cavern', 'grotto', 'hollow',
-  
+
   // Abstract Concepts
   'love', 'affection', 'adoration', 'devotion',
   'hate', 'loathing', 'abhorrence', 'disdain',
@@ -93,7 +97,7 @@ const WORD_POOL: string[] = [
   'order', 'organization', 'system', 'structure',
   'power', 'strength', 'force', 'might',
   'weakness', 'vulnerability', 'fragility', 'feebleness',
-  
+
   // Science & Tech
   'robot', 'android', 'automaton', 'machine',
   'algorithm', 'procedure', 'formula', 'method',
@@ -109,7 +113,7 @@ const WORD_POOL: string[] = [
   'experiment', 'test', 'trial', 'research',
   'theory', 'hypothesis', 'concept', 'idea',
   'discovery', 'finding', 'breakthrough', 'revelation',
-  
+
   // Actions & Motion
   'run', 'sprint', 'dash', 'race',
   'walk', 'stroll', 'wander', 'amble',
@@ -126,7 +130,7 @@ const WORD_POOL: string[] = [
   'destroy', 'demolish', 'ruin', 'wreck',
   'fix', 'repair', 'mend', 'restore',
   'break', 'shatter', 'fracture', 'crack',
-  
+
   // More Diverse  
   'glacier', 'iceberg', 'tundra', 'arctic',
   'tsunami', 'wave', 'surge', 'flood',
@@ -154,13 +158,14 @@ const SIMILARITY_THRESHOLD = 0.45; // 45% similarity required
 
 export default function SemanticClearGame() {
   const { isReady, isLoading, progress, error, calculateSimilarity } = useSemanticSimilarity();
-  
+
   // --- AUTH & USER STATE ---
+  const { showToast } = useToast();
   const [gamePhase, setGamePhase] = useState<GamePhase>('AUTH');
   const [uid, setUid] = useState('');
   const [playerData, setPlayerData] = useState<{ name: string | null; stonks: number } | null>(null);
   const [authLoading, setAuthLoading] = useState(false);
-  
+
   const [words, setWords] = useState<Word[]>([]);
   const [inputValue, setInputValue] = useState<string>('');
   const [score, setScore] = useState<number>(0);
@@ -169,11 +174,19 @@ export default function SemanticClearGame() {
   const [blazeMode, setBlazeMode] = useState<boolean>(false);
   const [gameOver, setGameOver] = useState<boolean>(false);
   const [feedback, setFeedback] = useState<string>('');
-  
+
   const gameLoopRef = useRef<number | null>(null);
   const spawnIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const nextWordId = useRef<number>(0);
   const lastLifeLossTime = useRef<number>(0);
+  const feedbackTimerRef = useRef<NodeJS.Timeout | null>(null);
+
+  // Cleanup on unmount
+  useEffect(() => {
+    return () => {
+      if (feedbackTimerRef.current) clearTimeout(feedbackTimerRef.current);
+    };
+  }, []);
 
   // --- AUTH & DEDUCTION ---
   const checkPlayer = async (e: React.FormEvent) => {
@@ -187,7 +200,7 @@ export default function SemanticClearGame() {
         .single();
 
       if (error || !data) {
-        alert('Player not found!');
+        showToast('Player not found!', 'error');
         setPlayerData(null);
       } else {
         setPlayerData(data);
@@ -199,19 +212,19 @@ export default function SemanticClearGame() {
   };
 
   const payAndStart = async () => {
-    if (!playerData || playerData.stonks < 20) {
-      alert('Insufficient Stonks!');
+    if (!playerData || playerData.stonks < GAME_CONSTANTS.ENTRY_FEE) {
+      showToast(`Insufficient Stonks! Need ${GAME_CONSTANTS.ENTRY_FEE}.`, 'error');
       return;
     }
     setAuthLoading(true);
 
     const { error: updateError } = await supabase
       .from('players')
-      .update({ stonks: playerData.stonks - 20 })
+      .update({ stonks: playerData.stonks - GAME_CONSTANTS.ENTRY_FEE })
       .eq('uid', uid);
 
     if (updateError) {
-      alert('Transaction Failed');
+      showToast('Transaction Failed', 'error');
       setAuthLoading(false);
       return;
     }
@@ -221,10 +234,10 @@ export default function SemanticClearGame() {
       player_uid: uid,
       game_title: 'Semantic Clear',
       result: 'PLAYING',
-      stonks_change: -20
+      stonks_change: -GAME_CONSTANTS.ENTRY_FEE
     });
 
-    setPlayerData({ ...playerData, stonks: playerData.stonks - 20 });
+    setPlayerData({ ...playerData, stonks: playerData.stonks - GAME_CONSTANTS.ENTRY_FEE });
     setGamePhase('PLAYING');
     setAuthLoading(false);
   };
@@ -252,12 +265,12 @@ export default function SemanticClearGame() {
 
   const gameLoop = useCallback(() => {
     if (gameOver) return; // Stop immediately if game is over
-    
+
     setWords((prevWords) => {
       // Calculate dynamic fall speed based on score (increases every 500 points)
       const speedMultiplier = 1 + Math.floor(score / 500) * 0.05;
       const currentFallSpeed = FALL_SPEED * speedMultiplier;
-      
+
       const updatedWords = prevWords.map((word) => ({
         ...word,
         y: word.y + currentFallSpeed,
@@ -272,7 +285,7 @@ export default function SemanticClearGame() {
         const now = Date.now();
         if (now - lastLifeLossTime.current > 500) {
           lastLifeLossTime.current = now;
-          
+
           // Lose only 1 life per frame, regardless of how many words hit bottom
           setLives((prevLives) => {
             const newLives = prevLives - 1;
@@ -286,12 +299,12 @@ export default function SemanticClearGame() {
             }
             return Math.max(0, newLives);
           });
-          
+
           // Reset streak on collision
           setStreak(0);
           setBlazeMode(false);
         }
-        
+
         // Remove ALL collided words immediately to prevent multi-frame triggers
         return updatedWords.filter(
           (word) => word.y < WORD_BOTTOM_THRESHOLD
@@ -309,7 +322,7 @@ export default function SemanticClearGame() {
   const handleSubmit = useCallback(
     async (e: React.FormEvent<HTMLFormElement>) => {
       e.preventDefault();
-      
+
       if (!inputValue.trim() || words.length === 0 || !isReady) {
         return;
       }
@@ -321,7 +334,7 @@ export default function SemanticClearGame() {
       for (const word of words) {
         try {
           const similarity = await calculateSimilarity(userWord, word.text.toLowerCase());
-          
+
           if (similarity > bestSimilarity) {
             bestSimilarity = similarity;
             bestMatch = word;
@@ -330,23 +343,23 @@ export default function SemanticClearGame() {
           console.error('Error calculating similarity:', err);
         }
       }
-      
+
       // Reject exact matches (>95% similarity)
       if (bestMatch && bestSimilarity >= 0.95) {
         setFeedback(`✗ Too similar! Try a related but different word`);
-        setTimeout(() => setFeedback(''), 2000);
+        feedbackTimerRef.current = setTimeout(() => setFeedback(''), 2000);
         setInputValue('');
         return;
       }
-      
+
       if (bestMatch && bestSimilarity >= SIMILARITY_THRESHOLD) {
         setWords((prevWords) => prevWords.filter((w) => w.id !== bestMatch.id));
-        
+
         // Calculate score with blaze mode multiplier
         const basePoints = Math.round(bestSimilarity * 100);
         const points = blazeMode ? basePoints * 2 : basePoints;
         setScore((prevScore) => prevScore + points);
-        
+
         // Update streak and check for blaze mode
         setStreak((prevStreak) => {
           const newStreak = prevStreak + 1;
@@ -360,14 +373,14 @@ export default function SemanticClearGame() {
           }
           return newStreak;
         });
-        
-        setTimeout(() => setFeedback(''), 1500);
+
+        feedbackTimerRef.current = setTimeout(() => setFeedback(''), 1500);
       } else {
         // Reset streak on miss
         setStreak(0);
         setBlazeMode(false);
         setFeedback(`✗ Too different (${(bestSimilarity * 100).toFixed(1)}%)`);
-        setTimeout(() => setFeedback(''), 1000);
+        feedbackTimerRef.current = setTimeout(() => setFeedback(''), 1000);
       }
 
       setInputValue('');
@@ -385,7 +398,7 @@ export default function SemanticClearGame() {
     setInputValue('');
     setFeedback('');
     nextWordId.current = 0;
-    
+
     // Stay in PLAYING phase for rematch
     if (gamePhase === 'RESULT') {
       setGamePhase('PLAYING');
@@ -395,31 +408,31 @@ export default function SemanticClearGame() {
   // Calculate dynamic stonks based on score tiers
   const calculateStonks = (score: number): number => {
     let stonks = 0;
-    
+
     // 100-500 points: 2 stonks per 100 points
     if (score >= 100) {
       const tier1Points = Math.min(score, 500);
       stonks += Math.floor(tier1Points / 100) * 2;
     }
-    
+
     // 500-1000 points: 4 stonks per 100 points
     if (score > 500) {
       const tier2Points = Math.min(score - 500, 500);
       stonks += Math.floor(tier2Points / 100) * 4;
     }
-    
+
     // 1000-2000 points: 8 stonks per 100 points
     if (score > 1000) {
       const tier3Points = Math.min(score - 1000, 1000);
       stonks += Math.floor(tier3Points / 100) * 6;
     }
-    
+
     // 2000+ points: 16 stonks per 100 points
     if (score > 2000) {
       const tier4Points = score - 2000;
       stonks += Math.floor(tier4Points / 100) * 10;
     }
-    
+
     return stonks;
   };
 
@@ -428,19 +441,19 @@ export default function SemanticClearGame() {
     if (gameOver && gamePhase === 'PLAYING') {
       const handleGameOver = async () => {
         setGamePhase('RESULT');
-        
+
         // Award stonks based on dynamic tier system
         const stonksEarned = calculateStonks(score);
-        
+
         if (playerData && stonksEarned > 0) {
           await supabase
             .from('players')
             .update({ stonks: playerData.stonks + stonksEarned })
             .eq('uid', uid);
-          
+
           setPlayerData({ ...playerData, stonks: playerData.stonks + stonksEarned });
         }
-        
+
         // Log game result
         await supabase.from('game_logs').insert({
           player_uid: uid,
@@ -449,7 +462,7 @@ export default function SemanticClearGame() {
           stonks_change: stonksEarned
         });
       };
-      
+
       handleGameOver();
     }
   }, [gameOver, gamePhase, score, playerData, uid]);
@@ -469,71 +482,44 @@ export default function SemanticClearGame() {
   // AUTH SCREEN
   if (gamePhase === 'AUTH') {
     return (
-      <div className="h-screen overflow-auto bg-neo-cyan text-black font-mono p-4 md:p-8 flex items-center justify-center">
-        <div className="max-w-md w-full bg-white border-8 border-black shadow-[16px_16px_0px_#000] p-8">
-          <h1 className="text-4xl font-heading mb-6 text-center uppercase">
+      <StandardAuth
+        onVerify={(id) => { setUid(id); checkPlayer({ preventDefault: () => { } } as any); }}
+        loading={authLoading}
+        title={
+          <h1 className="text-4xl font-heading mb-6 text-center uppercase text-black">
             Semantic <span className="text-neo-pink">Clear</span>
           </h1>
-          <p className="mb-6 text-center font-bold text-lg">Enter your Player ID to start</p>
-          <form onSubmit={checkPlayer} className="space-y-4">
-            <input
-              type="text"
-              value={uid}
-              onChange={(e) => setUid(e.target.value)}
-              required
-              className="w-full text-4xl font-heading p-4 border-4 border-black text-center"
-              placeholder="23BAI..."
-              autoFocus
-            />
-            <button
-              disabled={authLoading}
-              className="w-full bg-black text-white text-2xl font-heading py-4 hover:bg-neo-green hover:text-black transition-colors"
-            >
-              {authLoading ? <Loader2 className="animate-spin mx-auto" /> : 'VERIFY PLAYER'}
-            </button>
-          </form>
-        </div>
-      </div>
+        }
+        themeColor="neo-pink"
+        bgColor="bg-neo-cyan"
+      />
     );
   }
 
   // BET SCREEN
   if (gamePhase === 'BET' && playerData) {
     return (
-      <div className="h-screen overflow-auto bg-neo-yellow text-black font-mono p-4 md:p-8 flex items-center justify-center">
-        <div className="max-w-md w-full bg-white border-8 border-black shadow-[16px_16px_0px_#000] p-8">
-          <h1 className="text-4xl font-heading mb-6 text-center uppercase">
+      <StandardBet
+        playerData={playerData}
+        entryFee={GAME_CONSTANTS.ENTRY_FEE}
+        onPlay={payAndStart}
+        onCancel={resetToAuth}
+        loading={authLoading}
+        themeColor="neo-green"
+        bgColor="bg-neo-yellow"
+        title={
+          <h1 className="text-4xl font-heading mb-6 text-center uppercase text-black">
             Semantic <span className="text-neo-pink">Clear</span>
           </h1>
-          <div className="text-center">
-            <h2 className="text-2xl font-bold mb-2">PLAYER: {playerData.name || uid}</h2>
-            <div className="text-4xl font-heading mb-6">BALANCE: {playerData.stonks} 💎</div>
-            {playerData.stonks >= 20 ? (
-              <button
-                onClick={payAndStart}
-                disabled={authLoading}
-                className="w-full bg-neo-green text-black text-3xl font-heading py-6 border-4 border-black shadow-[16px_16px_0px_#000] hover:translate-y-1 hover:shadow-none transition-all"
-              >
-                {authLoading ? 'PROCESSING...' : 'PAY 20 & START'}
-              </button>
-            ) : (
-              <div className="bg-red-500 text-white p-4 font-bold text-xl border-4 border-black">
-                INSUFFICIENT FUNDS
-              </div>
-            )}
-            <button onClick={resetToAuth} className="mt-4 underline hover:text-neo-pink">
-              Cancel
-            </button>
-          </div>
-        </div>
-      </div>
+        }
+      />
     );
   }
 
   // RESULT SCREEN
   if (gamePhase === 'RESULT') {
     const stonksEarned = calculateStonks(score);
-    
+
     return (
       <div className="h-screen overflow-auto bg-neo-pink text-white font-mono p-4 md:p-8 flex items-center justify-center">
         <div className="max-w-md w-full bg-white border-8 border-black shadow-[16px_16px_0px_#000] p-8 text-black">
@@ -569,18 +555,18 @@ export default function SemanticClearGame() {
           <h2 className="text-3xl font-heading mb-6 text-center uppercase">
             Loading AI Model...
           </h2>
-          
+
           <div className="w-full bg-gray-200 border-4 border-black h-8 mb-4 overflow-hidden">
             <div
               className="bg-neo-green h-full transition-all duration-300"
               style={{ width: `${Math.round(progress * 100)}%` }}
             />
           </div>
-          
+
           <p className="text-center font-bold text-2xl">
             {Math.round(progress * 100)}%
           </p>
-          
+
           <p className="text-center text-sm mt-4">
             Preparing semantic similarity model...
           </p>
@@ -621,7 +607,7 @@ export default function SemanticClearGame() {
               SCORE: <span className="text-neo-pink">{score}</span>
             </div>
           </div>
-          
+
           {/* Lives and Streak Bar */}
           <div className="flex justify-between items-center text-sm md:text-base">
             {/* Lives */}
@@ -635,7 +621,7 @@ export default function SemanticClearGame() {
                 ))}
               </div>
             </div>
-            
+
             {/* Streak and Blaze Mode */}
             <div className="flex items-center gap-3">
               {blazeMode && (
@@ -645,9 +631,8 @@ export default function SemanticClearGame() {
               )}
               <div className="flex items-center gap-2">
                 <span className="font-heading text-neo-cyan">STREAK:</span>
-                <span className={`font-heading text-xl ${
-                  streak >= 3 ? 'text-neo-pink animate-pulse' : 'text-white'
-                }`}>
+                <span className={`font-heading text-xl ${streak >= 3 ? 'text-neo-pink animate-pulse' : 'text-white'
+                  }`}>
                   {streak}
                 </span>
               </div>
@@ -705,7 +690,7 @@ export default function SemanticClearGame() {
 
         {/* Input Area */}
         <div className="bg-gray-100 p-4 border-t-8 border-black">
-          <form onSubmit={handleSubmit} className="flex gap-2 mb-4">
+          <form onSubmit={handleSubmit} className="flex flex-col md:flex-row gap-2 mb-4">
             <input
               type="text"
               value={inputValue}
@@ -717,27 +702,26 @@ export default function SemanticClearGame() {
             />
             <button
               type="submit"
-              className="bg-black text-neo-yellow font-heading text-xl px-8 py-3 border-4 border-black hover:bg-neo-pink hover:text-white transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+              className="bg-black text-neo-yellow font-heading text-xl px-8 py-3 border-4 border-black hover:bg-neo-pink hover:text-white transition-all disabled:opacity-50 disabled:cursor-not-allowed w-full md:w-auto"
               disabled={gameOver}
             >
               Submit
             </button>
           </form>
-          
+
           {/* Feedback */}
           {feedback && (
-            <div className={`text-center font-heading text-xl mb-4 p-2 border-4 border-black ${
-              feedback.startsWith('✓') ? 'bg-neo-green text-black' : 'bg-neo-pink text-white'
-            }`}>
+            <div className={`text-center font-heading text-xl mb-4 p-2 border-4 border-black ${feedback.startsWith('✓') ? 'bg-neo-green text-black' : 'bg-neo-pink text-white'
+              }`}>
               {feedback}
             </div>
           )}
-          
+
           {/* Instructions */}
           <div className="text-sm text-center">
             <p className="font-bold mb-1">Type words semantically similar to falling blocks!</p>
             <p className="text-xs">
-              Similarity threshold: {SIMILARITY_THRESHOLD * 100}% | 
+              Similarity threshold: {SIMILARITY_THRESHOLD * 100}% |
               Press <kbd className="px-2 py-1 bg-white border-2 border-black font-mono mx-1">Enter</kbd> to submit
             </p>
           </div>

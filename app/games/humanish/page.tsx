@@ -2,7 +2,10 @@
 
 import { useState, useEffect, useRef } from "react";
 import { Loader2, Coins } from "lucide-react";
-import { supabase } from "@/utils/supabase";
+import { supabase } from '@/utils/supabase';
+import { GAME_CONSTANTS } from '@/utils/game-constants';
+import StandardAuth from '@/components/game-ui/StandardAuth';
+import StandardBet from '@/components/game-ui/StandardBet';
 
 type Message = {
   sender: "me" | "partner";
@@ -10,7 +13,7 @@ type Message = {
 };
 
 type PartnerType = "human" | "ai";
-type GameState = "AUTH" | "PLAYING" | "RESULT";
+type GameState = "AUTH" | "BET" | "PLAYING" | "RESULT";
 
 export default function HumanishGame() {
   // Auth & General State
@@ -37,9 +40,16 @@ export default function HumanishGame() {
   const decisionCheckInterval = useRef<NodeJS.Timeout | null>(null);
   const sessionIdRef = useRef<string>("");
 
+  // Cleanup on unmount
+  useEffect(() => {
+    return () => {
+      if (decisionCheckInterval.current) clearInterval(decisionCheckInterval.current);
+      if (pollInterval.current) clearInterval(pollInterval.current);
+    };
+  }, []);
+
   // Check Player (Login)
-  const checkPlayer = async (e?: React.FormEvent) => {
-    if (e) e.preventDefault();
+  const checkPlayer = async (checkUid: string) => {
     setLoading(true);
     setAuthError("");
 
@@ -47,7 +57,7 @@ export default function HumanishGame() {
       const { data, error } = await supabase
         .from('players')
         .select('name, stonks')
-        .eq('uid', uid)
+        .eq('uid', checkUid)
         .single();
 
       if (error || !data) {
@@ -55,7 +65,7 @@ export default function HumanishGame() {
         setPlayerData(null);
       } else {
         setPlayerData(data);
-        // Automatically check balance but don't start yet, user is just "logged in"
+        setGameState('BET');
       }
     } catch (err) {
       console.error("Auth error:", err);
@@ -69,8 +79,8 @@ export default function HumanishGame() {
   const startGame = async () => {
     if (!playerData || !uid) return;
 
-    if (playerData.stonks < 20) {
-      setAuthError("Not enough gems! Need 20 gems to play.");
+    if (playerData.stonks < GAME_CONSTANTS.ENTRY_FEE) {
+      setAuthError(`Not enough gems! Need ${GAME_CONSTANTS.ENTRY_FEE} gems to play.`);
       return;
     }
 
@@ -81,7 +91,7 @@ export default function HumanishGame() {
       // 1. Deduct from DB
       const { error: updateError } = await supabase
         .from('players')
-        .update({ stonks: playerData.stonks - 20 })
+        .update({ stonks: playerData.stonks - GAME_CONSTANTS.ENTRY_FEE })
         .eq('uid', uid);
 
       if (updateError) throw updateError;
@@ -91,11 +101,11 @@ export default function HumanishGame() {
         player_uid: uid,
         game_title: 'Humanish',
         result: 'PLAYING',
-        stonks_change: -20
+        stonks_change: -GAME_CONSTANTS.ENTRY_FEE
       });
 
       // 3. Update local state
-      setPlayerData(prev => prev ? ({ ...prev, stonks: prev.stonks - 20 }) : null);
+      setPlayerData(prev => prev ? ({ ...prev, stonks: prev.stonks - GAME_CONSTANTS.ENTRY_FEE }) : null);
 
       // 4. Start Game Logic
       initializeGame();
@@ -287,6 +297,7 @@ export default function HumanishGame() {
       });
     } catch (error) {
       console.error("Failed to send message:", error);
+      setIsWaitingForReply(false);
     }
   };
 
@@ -362,7 +373,7 @@ export default function HumanishGame() {
         <h2 className="text-3xl font-bold mb-6 text-center">LOGIN</h2>
 
         {!playerData ? (
-          <form onSubmit={checkPlayer} className="space-y-4">
+          <form onSubmit={(e) => { e.preventDefault(); checkPlayer(uid); }} className="space-y-4">
             <div>
               <label className="block font-bold text-sm mb-1">ENTER YOUR ID</label>
               <input
@@ -394,13 +405,13 @@ export default function HumanishGame() {
             </div>
 
             <div className="space-y-3">
-              <p className="font-bold text-sm">ENTRY FEE: <span className="text-red-500">20 GEMS</span></p>
+              <p className="font-bold text-sm">ENTRY FEE: <span className="text-red-500">{GAME_CONSTANTS.ENTRY_FEE} GEMS</span></p>
               <p className="font-bold text-sm">REWARD: <span className="text-green-600">30 GEMS</span></p>
             </div>
 
             <button
               onClick={startGame}
-              disabled={loading || playerData.stonks < 20}
+              disabled={loading || playerData.stonks < GAME_CONSTANTS.ENTRY_FEE}
               className="w-full bg-pink-400 hover:bg-pink-500 text-black font-bold py-4 text-xl border-4 border-black shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] hover:shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] hover:translate-x-[2px] hover:translate-y-[2px] transition-all disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {loading ? <Loader2 className="animate-spin mx-auto" /> : "PAY & PLAY"}
@@ -416,27 +427,43 @@ export default function HumanishGame() {
   return (
     <div className="h-screen overflow-auto bg-gradient-to-br from-pink-100 to-cyan-100 p-4 font-mono">
       <div className="max-w-2xl mx-auto">
-        {/* Header */}
-        <div className="text-center mb-8">
-          <h1 className="text-5xl font-bold mb-2 text-black drop-shadow-[3px_3px_0px_rgba(0,0,0,0.3)]">
-            HUMANISH
-          </h1>
-          <p className="text-lg text-gray-700 mb-4">
-            Chat for 90 seconds. Guess: Human or AI?
-          </p>
 
-          {playerData && gameState !== 'AUTH' && (
-            <div className="inline-flex items-center gap-4 bg-white px-4 py-2 border-2 border-black rounded-full shadow-md">
-              <span className="font-bold">{playerData.name}</span>
-              <span className="w-px h-4 bg-gray-300" />
-              <span className="flex items-center gap-1 font-bold text-green-600">
-                <Coins size={16} /> {playerData.stonks}
-              </span>
-            </div>
-          )}
-        </div>
 
-        {gameState === 'AUTH' && renderAuth()}
+        {gameState === 'AUTH' && (
+          <StandardAuth
+            onVerify={(id) => { setUid(id); checkPlayer(id); }}
+            loading={loading}
+            title={
+              <div className="text-center mb-4">
+                <h1 className="text-4xl font-bold uppercase text-black mb-2">
+                  HUMAN<span className="text-pink-500">ISH</span>
+                </h1>
+                <p className="text-lg text-gray-700 font-bold">
+                  Chat for 90 seconds. Guess: Human or AI?
+                </p>
+              </div>
+            }
+            themeColor="pink-400"
+            bgColor="bg-transparent"
+          />
+        )}
+
+        {gameState === 'BET' && playerData && (
+          <StandardBet
+            playerData={playerData}
+            entryFee={GAME_CONSTANTS.ENTRY_FEE}
+            onPlay={startGame}
+            onCancel={() => setGameState('AUTH')}
+            loading={loading}
+            themeColor="pink-400"
+            bgColor="bg-transparent"
+            title={
+              <h1 className="text-4xl font-bold uppercase text-black">
+                HUMAN<span className="text-pink-500">ISH</span>
+              </h1>
+            }
+          />
+        )}
 
         {gameState === 'PLAYING' && (
           <>
