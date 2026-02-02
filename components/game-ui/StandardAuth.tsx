@@ -1,7 +1,9 @@
 'use client';
 
 import React, { useState } from 'react';
+import { QRCodeSVG } from 'qrcode.react';
 import { Loader2 } from 'lucide-react';
+import { supabase } from '@/utils/supabase';
 
 interface StandardAuthProps {
     onVerify: (uid: string) => void;
@@ -23,15 +25,37 @@ export default function StandardAuth({
     backgroundElement,
 }: StandardAuthProps) {
     const [uid, setUid] = useState('');
+    const [sessionId, setSessionId] = useState<string>('');
+
+    // Generate unique session for QR login
+    React.useEffect(() => {
+        const newSessionId = `GAME-${Math.random().toString(36).substring(2, 9).toUpperCase()}`;
+        setSessionId(newSessionId);
+
+        const channel = supabase.channel(newSessionId)
+            .on('broadcast', { event: 'LOGIN_REQUEST' }, (payload) => {
+                console.log('Received magic login:', payload);
+                if (payload.payload?.uid) {
+                    const receivedUid = payload.payload.uid;
+                    setUid(receivedUid);
+                    onVerify(receivedUid);
+                }
+            })
+            .subscribe((status) => {
+                if (status === 'SUBSCRIBED') {
+                    console.log(`Listening for magic login on ${newSessionId}`);
+                }
+            });
+
+        return () => {
+            supabase.removeChannel(channel);
+        };
+    }, []); // Only run on mount
 
     const handleSubmit = (e: React.FormEvent) => {
         e.preventDefault();
         if (uid.trim()) onVerify(uid.trim());
     };
-
-    // Helper to map abstract theme names to tailwind classes if needed
-    // specific tailwind classes might need 'text-' prefix or 'bg-' prefix depending on context
-    // ensuring themeColor is a safe class string
 
     return (
         <div
@@ -53,7 +77,9 @@ export default function StandardAuth({
                     {title}
                 </div>
 
-                <p className="mb-6 text-center font-bold text-lg text-black">Enter your Player ID to start</p>
+                <p className="mb-6 text-center font-bold text-lg text-black">
+                    Enter Player ID or Scan Code with Leaderboard App
+                </p>
 
                 <form onSubmit={handleSubmit} className="space-y-4">
                     <input
@@ -65,6 +91,22 @@ export default function StandardAuth({
                         placeholder="23BAI..."
                         autoFocus
                     />
+
+                    {/* Show Session QR if no UID entered yet, or Entered UID QR if present */}
+                    {(uid || sessionId) && (
+                        <div className="flex flex-col items-center justify-center my-4 p-4 bg-white border-4 border-black w-fit mx-auto">
+                            <QRCodeSVG
+                                value={uid ? uid : sessionId}
+                                size={128}
+                                level="H"
+                                includeMargin={false}
+                            />
+                            <p className="mt-2 text-xs font-bold text-gray-500 uppercase">
+                                {uid ? 'YOUR ID' : 'SCAN TO LOGIN'}
+                            </p>
+                        </div>
+                    )}
+
                     <button
                         disabled={loading}
                         className={`w-full bg-black text-white text-2xl font-heading py-4 hover:opacity-80 transition-opacity disabled:opacity-50`}

@@ -23,6 +23,7 @@
     "groq-sdk": "^0.37.0",
     "lucide-react": "^0.562.0",
     "next": "16.1.4",
+    "qrcode.react": "^4.2.0",
     "react": "19.2.3",
     "react-dom": "19.2.3",
     "react-webcam": "^7.2.0",
