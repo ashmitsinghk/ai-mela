@@ -176,11 +176,19 @@ export default function HumanishGame() {
   };
 
   // Connect to AI
+  const isConnectingToAIRef = useRef(false);
+
   const connectToAI = () => {
+    if (isConnectingToAIRef.current) return;
+    isConnectingToAIRef.current = true;
+
     setPartnerType("ai");
     if (decisionCheckInterval.current) clearInterval(decisionCheckInterval.current);
+
+    // Reset the ref after a safe delay if needed, or keep it true until reset
     setTimeout(() => {
-      sendBotMessage("Start the conversation with a casual hinglish greeting or question.");
+      sendBotMessage("Start the conversation with a casual English greeting");
+      isConnectingToAIRef.current = false; // Allow reconnection if game restarts
     }, 1000);
   };
 
