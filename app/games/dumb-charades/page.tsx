@@ -19,13 +19,15 @@ export default function DumbCharadesGame() {
   const [playerData, setPlayerData] = useState<{ name: string | null; stonks: number } | null>(null);
   const [authLoading, setAuthLoading] = useState(false);
 
-  const [gameState, setGameState] = useState<GameState>({
+  // Added timeLeft to state
+  const [gameState, setGameState] = useState<GameState & { timeLeft: number }>({
     round: 0,
     stonks: 0,
     currentRoundData: null,
     gameOver: false,
     selectedAnswer: null,
     showFeedback: false,
+    timeLeft: 10, // Initialize with 10 seconds
   });
 
   const [isPressed, setIsPressed] = useState<string | null>(null);
@@ -34,14 +36,61 @@ export default function DumbCharadesGame() {
   // Timer refs
   const feedbackRef = useRef<NodeJS.Timeout | null>(null);
   const nextRoundRef = useRef<NodeJS.Timeout | null>(null);
+  const timerRef = useRef<NodeJS.Timeout | null>(null);
 
   // Cleanup on unmount
   useEffect(() => {
     return () => {
       if (feedbackRef.current) clearTimeout(feedbackRef.current);
       if (nextRoundRef.current) clearTimeout(nextRoundRef.current);
+      if (timerRef.current) clearInterval(timerRef.current);
     };
   }, []);
+
+  // Timer Logic
+  useEffect(() => {
+    // Only run timer if we are in PLAYING phase, feedback is NOT showing, and game is NOT over
+    if (gamePhase === 'PLAYING' && !gameState.showFeedback && !gameState.gameOver && gameState.currentRoundData) {
+      timerRef.current = setInterval(() => {
+        setGameState(prev => {
+          if (prev.timeLeft <= 1) {
+            // Time is up!
+            clearInterval(timerRef.current!);
+            handleTimeout();
+            return { ...prev, timeLeft: 0 };
+          }
+          return { ...prev, timeLeft: prev.timeLeft - 1 };
+        });
+      }, 1000);
+    }
+
+    return () => {
+      if (timerRef.current) clearInterval(timerRef.current);
+    };
+  }, [gamePhase, gameState.showFeedback, gameState.gameOver, gameState.currentRoundData]); // Dependencies for timer
+
+  const handleTimeout = () => {
+    // Treat as wrong answer
+    setGameState(prev => ({ ...prev, showFeedback: true, selectedAnswer: null })); // selectedAnswer null means timeout/wrong implies logic check below
+
+    // Delay then move to next round
+    nextRoundRef.current = setTimeout(async () => {
+      if (gameState.round >= 4) {
+        endGame();
+      } else {
+        const nextRoundData = await generateRound();
+        setGameState(prev => ({
+          ...prev,
+          round: prev.round + 1,
+          currentRoundData: nextRoundData,
+          selectedAnswer: null,
+          showFeedback: false,
+          timeLeft: 10, // Reset timer
+        }));
+      }
+    }, 1500);
+  };
+
 
   // Auth: Check player
   const checkPlayer = async (checkUid: string) => {
@@ -109,6 +158,7 @@ export default function DumbCharadesGame() {
       gameOver: false,
       selectedAnswer: null,
       showFeedback: false,
+      timeLeft: 10,
     });
   };
 
@@ -214,12 +264,15 @@ export default function DumbCharadesGame() {
       gameOver: false,
       selectedAnswer: null,
       showFeedback: false,
+      timeLeft: 10,
     });
   };
 
   // Handle answer selection
   const handleAnswerClick = (answer: string) => {
     if (gameState.showFeedback || gameState.selectedAnswer) return;
+
+    if (timerRef.current) clearInterval(timerRef.current); // Stop timer immediately
 
     setIsPressed(answer);
     setGameState(prev => ({ ...prev, selectedAnswer: answer }));
@@ -247,6 +300,7 @@ export default function DumbCharadesGame() {
             currentRoundData: nextRoundData,
             selectedAnswer: null,
             showFeedback: false,
+            timeLeft: 10,
           }));
         }
       }, 1500);
@@ -255,6 +309,7 @@ export default function DumbCharadesGame() {
 
   // End game and update stonks
   const endGame = async () => {
+    if (timerRef.current) clearInterval(timerRef.current);
     setGameState(prev => ({ ...prev, gameOver: true }));
     setGamePhase('RESULT');
 
@@ -283,18 +338,7 @@ export default function DumbCharadesGame() {
     }
   };
 
-  const playAgain = () => {
-    setUsedEntryIds([]);
-    setGamePhase('BET');
-    setGameState({
-      round: 0,
-      stonks: 0,
-      currentRoundData: null,
-      gameOver: false,
-      selectedAnswer: null,
-      showFeedback: false,
-    });
-  };
+
 
   // Initialize game on mount when phase becomes 'PLAYING'
   useEffect(() => {
@@ -310,8 +354,8 @@ export default function DumbCharadesGame() {
         onVerify={(id) => { setUid(id); checkPlayer(id); }}
         loading={authLoading}
         title={
-          <h1 className="text-4xl font-black uppercase text-center">
-            <span className="inline-block bg-[#A855F7] text-white px-6 py-3 -skew-x-6 border-4 border-black">
+          <h1 className="text-3xl font-black uppercase text-center">
+            <span className="inline-block bg-[#A855F7] text-white px-4 py-2 -skew-x-6 border-4 border-black">
               DUMB CHARADES
             </span>
           </h1>
@@ -345,8 +389,8 @@ export default function DumbCharadesGame() {
         loading={authLoading}
         themeColor="purple-500"
         title={
-          <h1 className="text-4xl font-black uppercase text-center">
-            <span className="inline-block bg-[#A855F7] text-white px-6 py-3 -skew-x-6 border-4 border-black">
+          <h1 className="text-3xl font-black uppercase text-center">
+            <span className="inline-block bg-[#A855F7] text-white px-4 py-2 -skew-x-6 border-4 border-black">
               READY TO PLAY?
             </span>
           </h1>
@@ -364,20 +408,20 @@ export default function DumbCharadesGame() {
           />
         }
         instructions={
-          <div className="space-y-2 text-sm font-bold text-left">
-            <p>🎯 4 Rounds of image guessing</p>
-            <p>💰 +10 Stonks per correct answer</p>
-            <p>🎉 Max win: 40 Stonks!</p>
+          <div className="space-y-1 text-sm font-bold text-left">
+            <p>🎯 4 Rounds</p>
+            <p>⏱️ 10s Timer</p>
+            <p>💰 +10 Stonks ea.</p>
           </div>
         }
       />
     );
   }
 
-  // RESULT SCREEN
+  // RESULT SCREEN - Compact
   if (gamePhase === 'RESULT' && gameState.gameOver) {
     return (
-      <div className="min-h-screen bg-white relative overflow-hidden">
+      <div className="h-screen w-screen bg-white relative overflow-hidden flex items-center justify-center">
         <div
           className="absolute inset-0"
           style={{
@@ -389,27 +433,27 @@ export default function DumbCharadesGame() {
           }}
         />
 
-        <div className="relative z-10 container mx-auto px-4 py-12 flex items-center justify-center min-h-screen">
-          <div className="bg-white border-4 border-black shadow-[8px_8px_0px_0px_rgba(0,0,0,1)] p-8 max-w-lg w-full">
-            <h1 className="text-5xl font-black uppercase text-center mb-8">
-              <span className="inline-block bg-[#A855F7] text-white px-6 py-3 -skew-x-6 border-4 border-black">
+        <div className="relative z-10 w-full max-w-md px-4">
+          <div className="bg-white border-4 border-black shadow-[8px_8px_0px_0px_rgba(0,0,0,1)] p-6 w-full">
+            <h1 className="text-4xl font-black uppercase text-center mb-6">
+              <span className="inline-block bg-[#A855F7] text-white px-4 py-2 -skew-x-6 border-4 border-black">
                 GAME OVER!
               </span>
             </h1>
 
-            <div className="text-center mb-8">
-              <p className="text-2xl font-bold uppercase mb-4">FINAL SCORE</p>
-              <div className="bg-[#22C55E] border-4 border-black inline-block px-8 py-4">
-                <p className="text-5xl font-black text-white uppercase">
+            <div className="text-center mb-6">
+              <p className="text-xl font-bold uppercase mb-2">FINAL SCORE</p>
+              <div className="bg-[#22C55E] border-4 border-black inline-block px-6 py-3">
+                <p className="text-4xl font-black text-white uppercase">
                   {gameState.stonks} STONKS
                 </p>
               </div>
             </div>
 
             <div className="text-center mb-6">
-              <p className="text-xl font-bold uppercase mb-2">Current Total Stonks</p>
-              <div className="bg-blue-500 border-4 border-black inline-block px-8 py-4">
-                <p className="text-3xl font-black text-white uppercase">
+              <p className="text-lg font-bold uppercase mb-2">Total</p>
+              <div className="bg-blue-500 border-4 border-black inline-block px-6 py-3">
+                <p className="text-2xl font-black text-white uppercase">
                   {playerData?.stonks} STONKS
                 </p>
               </div>
@@ -417,12 +461,10 @@ export default function DumbCharadesGame() {
 
             <button
               onClick={resetToAuth}
-              className="w-full bg-gray-300 text-black text-xl font-black uppercase py-3 px-6 border-4 border-black shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] hover:shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] hover:translate-x-[2px] hover:translate-y-[2px] transition-all"
+              className="w-full bg-gray-300 text-black text-lg font-black uppercase py-3 px-4 border-4 border-black shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] hover:shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] hover:translate-x-[2px] hover:translate-y-[2px] transition-all"
             >
               EXIT
             </button>
-
-
           </div>
         </div>
       </div>
@@ -435,10 +477,11 @@ export default function DumbCharadesGame() {
 
   const { correctEntry, options } = gameState.currentRoundData;
 
+  // PLAYING SCREEN - Compact Layout
   return (
-    <div className="min-h-screen bg-white relative overflow-hidden">
+    <div className="h-screen w-screen bg-white relative overflow-hidden flex flex-col">
       <div
-        className="absolute inset-0"
+        className="absolute inset-0 pointer-events-none"
         style={{
           backgroundImage: `
             linear-gradient(#dbeafe 1px, transparent 1px),
@@ -448,49 +491,64 @@ export default function DumbCharadesGame() {
         }}
       />
 
-      <div className="relative z-10 container mx-auto px-4 py-8">
-        <div className="mb-8">
-          <h1 className="text-4xl md:text-6xl font-black uppercase text-center mb-4">
-            <span className="inline-block bg-[#A855F7] text-white px-6 py-3 -skew-x-6 border-4 border-black shadow-[8px_8px_0px_0px_rgba(0,0,0,1)]">
-              DUMB CHARADES
-            </span>
-          </h1>
-
-          <div className="flex justify-between items-center max-w-2xl mx-auto">
-            <div className="bg-white border-4 border-black px-4 py-2 shadow-[4px_4px_0px_0px_rgba(0,0,0,1)]">
-              <span className="text-xl font-bold uppercase">Round: {gameState.round}/4</span>
-            </div>
-
-            <div className="bg-[#22C55E] border-4 border-black px-4 py-2 shadow-[4px_4px_0px_0px_rgba(0,0,0,1)]">
-              <span className="text-xl font-black text-white uppercase">
-                {gameState.stonks} STONKS
+      <div className="relative z-10 container mx-auto px-2 py-4 flex-1 flex flex-col max-w-2xl h-full">
+        {/* Header */}
+        <div className="mb-2 shrink-0">
+          <div className="flex justify-between items-center mb-2">
+            <h1 className="text-xl md:text-2xl font-black uppercase">
+              <span className="inline-block bg-[#A855F7] text-white px-3 py-1 -skew-x-6 border-2 border-black shadow-[2px_2px_0px_0px_rgba(0,0,0,1)]">
+                DUMB CHARADES
               </span>
+            </h1>
+            <div className="bg-[#22C55E] border-2 border-black px-3 py-1 shadow-[2px_2px_0px_0px_rgba(0,0,0,1)]">
+              <span className="text-lg font-black text-white uppercase">
+                {gameState.stonks} 💰
+              </span>
+            </div>
+          </div>
+
+          <div className="flex justify-between items-center">
+            <div className="bg-white border-2 border-black px-3 py-1 shadow-[2px_2px_0px_0px_rgba(0,0,0,1)]">
+              <span className="text-sm font-bold uppercase">Round: {gameState.round}/4</span>
+            </div>
+            {/* Timer Display */}
+            <div className={`bg-white border-2 border-black px-3 py-1 shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] ${gameState.timeLeft <= 3 ? 'text-red-600' : ''}`}>
+              <span className="text-sm font-black uppercase">⏱️ {gameState.timeLeft}s</span>
             </div>
           </div>
         </div>
 
-        <div className="max-w-2xl mx-auto">
-          <div className="bg-white border-4 border-black shadow-[8px_8px_0px_0px_rgba(0,0,0,1)] p-6 mb-6">
-            <div className="relative w-full aspect-video mb-6 border-4 border-black bg-gray-100">
+        {/* Main Content Area - Scrollable if absolutely necessary but try to fit */}
+        <div className="flex-1 flex flex-col justify-center min-h-0">
+          <div className="bg-white border-4 border-black shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] p-3 flex flex-col h-full max-h-full">
+
+            {/* Image Container - Flexible height */}
+            <div className="relative w-full flex-1 min-h-0 mb-3 border-2 border-black bg-gray-100 overflow-hidden">
               <Image
                 src={correctEntry.image}
                 alt="Charade Image"
                 fill
-                className="object-cover"
+                className="object-contain"
                 priority
               />
             </div>
 
-            <p className="text-2xl font-bold uppercase text-center mb-6">
+            <p className="text-lg font-bold uppercase text-center mb-3 shrink-0">
               WHAT IS THIS?
             </p>
 
-            <div className="space-y-4">
+            {/* Options - Fixed height per button, maybe compact */}
+            <div className="space-y-2 shrink-0">
               {options.map((option, index) => {
                 const isSelected = gameState.selectedAnswer === option;
                 const isCorrect = option === gameState.currentRoundData?.correctAnswer;
+                // If timeout happened (selectedAnswer is null but showFeedback is true), show correct answer but no "wrong" selection unless clicked
+                // Actually handleTimeout logic sets selectedAnswer to null.
+
                 const showCorrect = gameState.showFeedback && isCorrect;
                 const showWrong = gameState.showFeedback && isSelected && !isCorrect;
+                // If timeout, no selection made. just show correct.
+
                 const isPressedButton = isPressed === option;
 
                 return (
@@ -499,37 +557,39 @@ export default function DumbCharadesGame() {
                     onClick={() => handleAnswerClick(option)}
                     disabled={gameState.showFeedback}
                     className={`
-                      w-full text-left px-6 py-4 text-lg font-bold uppercase
-                      border-4 border-black transition-all
+                      w-full text-left px-4 py-2 text-sm md:text-base font-bold uppercase leading-tight
+                      border-2 border-black transition-all
                       ${showCorrect ? 'bg-[#22C55E] text-white' : ''}
                       ${showWrong ? 'bg-red-500 text-white' : ''}
-                      ${!gameState.showFeedback && !isPressedButton ? 'bg-white shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] hover:shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] hover:translate-x-[2px] hover:translate-y-[2px]' : ''}
-                      ${isPressedButton ? 'bg-white translate-x-[4px] translate-y-[4px] shadow-none' : ''}
+                      ${!gameState.showFeedback && !isPressedButton ? 'bg-white shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] active:translate-x-[2px] active:translate-y-[2px] active:shadow-none' : ''}
+                      ${isPressedButton ? 'bg-white translate-x-[2px] translate-y-[2px] shadow-none' : ''}
                       ${gameState.showFeedback ? 'cursor-not-allowed' : 'cursor-pointer'}
                     `}
                   >
-                    {option}
-                    {showCorrect && <span className="ml-2">✓</span>}
-                    {showWrong && <span className="ml-2">✗</span>}
+                    <div className="flex justify-between items-center w-full">
+                      <span>{option}</span>
+                      {showCorrect && <span>✓</span>}
+                      {showWrong && <span>✗</span>}
+                    </div>
                   </button>
                 );
               })}
             </div>
           </div>
-
-          {gameState.showFeedback && (
-            <div className="text-center">
-              <div className={`inline-block px-6 py-3 border-4 border-black font-black text-2xl uppercase ${gameState.selectedAnswer === gameState.currentRoundData?.correctAnswer
-                ? 'bg-[#22C55E] text-white'
-                : 'bg-red-500 text-white'
-                }`}>
-                {gameState.selectedAnswer === gameState.currentRoundData?.correctAnswer
-                  ? '🎉 CORRECT! +10 STONKS'
-                  : '❌ WRONG!'}
-              </div>
-            </div>
-          )}
         </div>
+        {/* Feedback Toast - Overlay or integrated */}
+        {gameState.showFeedback && (
+          <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-50">
+            <div className={`px-6 py-4 border-4 border-black font-black text-2xl uppercase shadow-[8px_8px_0px_0px_rgba(0,0,0,0.5)] ${gameState.selectedAnswer === gameState.currentRoundData?.correctAnswer
+              ? 'bg-[#22C55E] text-white'
+              : 'bg-red-500 text-white'
+              }`}>
+              {gameState.selectedAnswer === gameState.currentRoundData?.correctAnswer
+                ? '🎉 GOOD! +10'
+                : (gameState.timeLeft === 0 ? '⏰ TIME UP!' : '❌ NOPE!')}
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );

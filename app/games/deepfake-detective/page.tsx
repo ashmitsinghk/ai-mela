@@ -168,19 +168,35 @@ export default function DeepfakeDetective() {
     const data = gameData as ImagePair[];
 
     // Filter out already used pairs
-    const availablePairs = data.filter(pair => !usedPairIds.includes(pair.id));
+    let availablePairs = data.filter(pair => !usedPairIds.includes(pair.id));
 
-    // If we've used all pairs, reset
+    // If we've used all pairs, reset history and use full list
     if (availablePairs.length === 0) {
-      setUsedPairIds([]);
-      return generateRound();
+      setUsedPairIds([]); // Reset state for future (will apply next render, but for now we use local logic)
+      availablePairs = data; // Use all data
+
+      // We also need to clear the usedPairIds immediately for THIS selection to work if we want to track it
+      // But since state update is async, we'll just pick effectively from fresh.
+      // However, we should be careful. If we just pick one, the next generateRound call might still see old usedPairIds if we aren't careful?
+      // Actually, setUsedPairIds([]) schedules the update.
+      // If we pick one now and add it to usedPairIds:
+      // setUsedPairIds(prev => [...prev]) -> prev here will be the OLD full list unless we strictly reset it.
+      // Better approach: When empty, just clear everything and restart logic.
+      // But we need to return a RoundData *now*.
     }
 
     // Pick a random pair from available ones
     const selectedPair = availablePairs[Math.floor(Math.random() * availablePairs.length)];
 
-    // Mark this pair as used
-    setUsedPairIds(prev => [...prev, selectedPair.id]);
+    // Mark this pair as used.
+    // If we just reset (length === 0), we want to start a FRESH list with just this one.
+    // If we didn't reset, we append to existing.
+    if (availablePairs.length === data.length) {
+      // This implies we reset (or it's the very first time).
+      setUsedPairIds([selectedPair.id]);
+    } else {
+      setUsedPairIds(prev => [...prev, selectedPair.id]);
+    }
 
     // Randomize which side gets the fake image
     const leftIsFake = Math.random() < 0.5;
@@ -271,19 +287,7 @@ export default function DeepfakeDetective() {
     }
   };
 
-  const playAgain = () => {
-    setGamePhase('BET');
-    setUsedPairIds([]);
-    setGameState({
-      round: 0,
-      stonks: 0,
-      currentRoundData: null,
-      gameOver: false,
-      selectedSide: null,
-      showFeedback: false,
-      timeLeft: 15,
-    });
-  };
+
 
   // Initialize game on mount
   useEffect(() => {

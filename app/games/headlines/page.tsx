@@ -64,6 +64,17 @@ export default function HeadlinesGame() {
   const TOTAL_ROUNDS = 5;
   const POINTS_PER_CORRECT = 8;
 
+  // Play Again: Restart game but KEEP used headlines history
+  const playAgain = () => {
+    setGameState('BET');
+    setCurrentRound(1);
+    setHeadlines([]);
+    setSelectedIndex(null);
+    setRoundResults([]);
+    setTimeLeft(30);
+    // DO NOT reset usedHeadlines
+  };
+
   // Reset game to AUTH
   const resetGame = () => {
     setGameState('AUTH');
@@ -135,22 +146,28 @@ export default function HeadlinesGame() {
     await generateGameRound();
   };
 
+
   // Generate a new round with real + 2 fakes
   const generateGameRound = async () => {
     setGeneratingHeadlines(true);
     try {
       // Select a random real headline that hasn't been used
-      const availableHeadlines = newsData.filter(h => !usedHeadlines.has(h.headline));
+      let availableHeadlines = newsData.filter(h => !usedHeadlines.has(h.headline));
 
       if (availableHeadlines.length === 0) {
         // Reset used headlines if we've exhausted all
         setUsedHeadlines(new Set());
+        availableHeadlines = newsData; // Use full list
       }
 
       const randomHeadline = availableHeadlines[Math.floor(Math.random() * availableHeadlines.length)];
 
-      // Mark as used
-      setUsedHeadlines(prev => new Set([...prev, randomHeadline.headline]));
+      // Mark as used - Check if we just reset (full list available)
+      if (availableHeadlines.length === newsData.length) {
+        setUsedHeadlines(new Set([randomHeadline.headline]));
+      } else {
+        setUsedHeadlines(prev => new Set([...prev, randomHeadline.headline]));
+      }
 
       // Generate fake headlines using AI
       const { real, fakes } = await generateFakeHeadlines(randomHeadline.headline);
@@ -175,6 +192,8 @@ export default function HeadlinesGame() {
       setGeneratingHeadlines(false);
     }
   };
+
+
 
   // Timer countdown effect
   useEffect(() => {
@@ -299,10 +318,12 @@ export default function HeadlinesGame() {
             onVerify={(id) => { setUid(id); checkPlayer(id); }}
             loading={loading}
             title={
-              <div className="text-center">
-                <Newspaper className="w-16 h-16 mx-auto mb-4 text-blue-600" />
-                <h1 className="text-4xl font-heading font-bold text-gray-800 mb-2 uppercase">Headline Hunter</h1>
-                <p className="text-gray-600 font-mono">Can you spot the real news from the fake?</p>
+              <div className="flex items-center justify-center gap-4">
+                <Newspaper className="w-16 h-16 text-blue-600" />
+                <div className="text-left">
+                  <h1 className="text-4xl font-heading font-bold text-gray-800 uppercase leading-none">Headline</h1>
+                  <h1 className="text-4xl font-heading font-bold text-gray-800 uppercase leading-none">Hunter</h1>
+                </div>
               </div>
             }
             themeColor="blue-600"
@@ -322,9 +343,12 @@ export default function HeadlinesGame() {
             themeColor="blue-600"
             bgImage="/Newspaper collage.jpeg"
             title={
-              <div className="text-center mb-6">
-                <Newspaper className="w-16 h-16 mx-auto mb-4 text-blue-600" />
-                <h1 className="text-4xl font-heading font-bold text-gray-800 mb-2 uppercase">Headline Hunter</h1>
+              <div className="flex items-center justify-center gap-4 mb-6">
+                <Newspaper className="w-16 h-16 text-blue-600" />
+                <div className="text-left">
+                  <h1 className="text-4xl font-heading font-bold text-gray-800 uppercase leading-none">Headline</h1>
+                  <h1 className="text-4xl font-heading font-bold text-gray-800 uppercase leading-none">Hunter</h1>
+                </div>
               </div>
             }
             instructions={
@@ -496,15 +520,18 @@ export default function HeadlinesGame() {
               </div>
             </div>
 
-            <button
-              onClick={resetGame}
-              className="w-full py-4 bg-blue-600 hover:bg-blue-700 text-white font-heading font-bold rounded-lg transition-colors border-2 border-blue-800 uppercase text-lg"
-            >
-              Exit to Menu
-            </button>
+            <div className="flex gap-4">
+              <button
+                onClick={resetGame}
+                className="flex-1 py-4 bg-gray-500 hover:bg-gray-600 text-white font-heading font-bold rounded-lg transition-colors border-2 border-gray-700 uppercase text-lg"
+              >
+                Exit
+              </button>
+            </div>
           </div>
         )}
       </div>
     </div>
   );
 }
+

@@ -504,7 +504,7 @@ export default function OddEveGame() {
                                 <div className={`p-8 border-4 border-black text-center max-w-md w-full ${gameResult === 'WIN' ? 'bg-neo-green' : 'bg-red-500 text-white'}`}>
                                     {gameResult === 'WIN' ? <Trophy size={64} className="mx-auto mb-4" /> : <Skull size={64} className="mx-auto mb-4" />}
                                     <h2 className="text-6xl font-heading mb-2">{gameResult === 'WIN' ? 'VICTORY' : 'DEFEAT'}</h2>
-                                    <p className="text-2xl font-bold mb-8">{gameResult === 'WIN' ? '+30 STONKS' : 'PLAY AGAIN?'}</p>
+                                    <p className="text-2xl font-bold mb-8">{gameResult === 'WIN' ? '+30 STONKS' : 'GAME OVER'}</p>
                                     <div className="mb-6 p-4 bg-white/10 border-2 border-white/50">
                                         <div className="text-xs font-bold uppercase mb-1 text-white/70">Total Stonks</div>
                                         <div className="text-3xl font-bold text-white">{playerData?.stonks} 💎</div>

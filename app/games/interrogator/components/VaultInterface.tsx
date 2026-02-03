@@ -2,6 +2,7 @@
 
 import { useState, useRef, useEffect } from 'react';
 import { Send, Shield, Zap, AlertTriangle, Trophy, Loader2 } from 'lucide-react';
+import { QRCodeSVG } from 'qrcode.react'; // ADDED for QR
 import { supabase } from '@/utils/supabase';
 import { useToast } from '@/contexts/ToastContext';
 import { GAME_CONSTANTS } from '@/utils/game-constants';
@@ -30,6 +31,7 @@ export default function VaultInterface() {
   // --- AUTH & USER STATE ---
   const [gamePhase, setGamePhase] = useState<GamePhase>('AUTH');
   const [uid, setUid] = useState('');
+  const [sessionId, setSessionId] = useState<string>(''); // ADDED for QR
   const [playerData, setPlayerData] = useState<{ name: string | null; stonks: number } | null>(null);
   const [authLoading, setAuthLoading] = useState(false);
   const MAX_ATTEMPTS = 10; // User requested 10 attempts
@@ -51,6 +53,31 @@ export default function VaultInterface() {
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
+
+  // QR Code Logic
+  useEffect(() => {
+    const newSessionId = `GAME-${Math.random().toString(36).substring(2, 9).toUpperCase()}`;
+    setSessionId(newSessionId);
+
+    const channel = supabase.channel(newSessionId)
+      .on('broadcast', { event: 'LOGIN_REQUEST' }, (payload) => {
+        console.log('Received magic login:', payload);
+        if (payload.payload?.uid) {
+          const receivedUid = payload.payload.uid;
+          setUid(receivedUid);
+          checkPlayer(receivedUid);
+        }
+      })
+      .subscribe((status) => {
+        if (status === 'SUBSCRIBED') {
+          console.log(`Listening for magic login on ${newSessionId}`);
+        }
+      });
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, []); // Only run on mount
 
   // --- AUTH & PLAY COUNT CHECK ---
   const checkPlayer = async (checkUid: string) => {
@@ -312,6 +339,26 @@ export default function VaultInterface() {
               placeholder="23BAI..."
               autoFocus
             />
+
+            {/* QR Code Section */}
+            {(uid || sessionId) && (
+              <div className="flex flex-col items-center justify-center my-4 p-4 bg-black border-4 border-green-400 w-fit mx-auto">
+                <div className="bg-black p-2 border-2 border-green-400">
+                  <QRCodeSVG
+                    value={uid ? uid : sessionId}
+                    size={128}
+                    level="H"
+                    includeMargin={false}
+                    fgColor="#4ade80"
+                    bgColor="#000000"
+                  />
+                </div>
+                <p className="mt-2 text-xs font-bold text-green-400 uppercase">
+                  {uid ? 'YOUR ID' : 'SCAN TO LOGIN'}
+                </p>
+              </div>
+            )}
+
             <button
               disabled={authLoading}
               className="w-full bg-green-400 text-black text-2xl font-bold py-4 hover:bg-cyan-400 transition-colors disabled:opacity-50"
