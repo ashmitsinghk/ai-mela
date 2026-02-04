@@ -285,12 +285,7 @@ export default function SemanticClearGame() {
     setInputValue('');
     setFeedback('');
     nextWordId.current = 0;
-
-    // Stay in PLAYING phase for rematch
-    if (gamePhase === 'RESULT') {
-      setGamePhase('PLAYING');
-    }
-  }, [gamePhase]);
+  }, []);
 
   // Calculate dynamic stonks based on survival time (10 per 30s, max 50)
   const calculateStonks = (seconds: number): number => {
