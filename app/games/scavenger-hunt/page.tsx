@@ -31,6 +31,12 @@ const ITEMS = [
     { emoji: '✂️', label: 'Scissors' },
     { emoji: '🪙', label: 'Coin' },
     { emoji: '🖥️', label: 'Monitor' },
+    { emoji: '📐', label: 'Ruler' },
+    { emoji: '📎', label: 'Paperclip' },
+    { emoji: '📓', label: 'Notebook' },
+    { emoji: '🔌', label: 'Charger' },
+    { emoji: '🔋', label: 'Power Bank' },
+    { emoji: '💾', label: 'USB Drive' },
 ];
 
 export default function ScavengerHunt() {
