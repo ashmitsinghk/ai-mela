@@ -4,11 +4,13 @@ import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Navbar from '@/components/Navbar';
 import { supabase } from '@/utils/supabase';
+import { useToast } from '@/contexts/ToastContext';
 
 export default function LoginPage() {
     const [uid, setUid] = useState('');
     const [loading, setLoading] = useState(false);
     const router = useRouter();
+    const { showToast } = useToast();
 
     const handleLogin = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -30,12 +32,8 @@ export default function LoginPage() {
             }
 
             if (!existingUser) {
-                // Create new user if not exists
-                const { error: insertError } = await supabase
-                    .from('players')
-                    .insert([{ uid: userId, stonks: 200 }]); // Default 200 stonks
-
-                if (insertError) throw insertError;
+                // User not found - Show error instead of creating
+                throw new Error('ID NOT RECOGNIZED. ACCESS DENIED.');
             }
 
             // Save session
@@ -43,8 +41,7 @@ export default function LoginPage() {
             router.push('/');
         } catch (error: any) {
             console.error('Login error:', error);
-            // Show more specific error to help debug
-            alert(`Login Failed: ${error.message || JSON.stringify(error)}`);
+            showToast(`${error.message || 'Login Failed'}`, 'error');
         } finally {
             setLoading(false);
         }
@@ -77,7 +74,7 @@ export default function LoginPage() {
                         </button>
                     </form>
                     <div className="mt-6 text-center font-mono text-xs text-gray-500">
-                        SYSTEM VERSION 2.0.4 <br /> ACCESS SECURE
+                        SYSTEM VERSION 2.0.5 <br /> SECURE LOGIN ONLY
                     </div>
                 </div>
             </div>
