@@ -4,7 +4,7 @@ import { useState, useRef, useEffect, useCallback } from 'react';
 import { supabase } from '@/utils/supabase';
 import { useToast } from '@/contexts/ToastContext';
 import { GAME_CONSTANTS } from '@/utils/game-constants';
-import StandardAuth from '@/components/game-ui/StandardAuth';
+
 import StandardBet from '@/components/game-ui/StandardBet';
 import Webcam from 'react-webcam';
 import Script from 'next/script';
@@ -15,13 +15,28 @@ import { HandLandmarker, FilesetResolver } from '@mediapipe/tasks-vision';
 type GamePhase = 'AUTH' | 'BET' | 'TOSS' | 'INNINGS_1' | 'INNINGS_2' | 'RESULT';
 type Role = 'BAT' | 'BOWL';
 
+
+import { useRouter } from 'next/navigation';
+
 export default function OddEveGame() {
     const { showToast } = useToast();
+    const router = useRouter();
     // --- AUTH & USER STATE ---
-    const [gameState, setGameState] = useState<GamePhase>('AUTH');
+    const [gameState, setGameState] = useState<GamePhase>('BET'); // Start at BET
     const [uid, setUid] = useState('');
     const [playerData, setPlayerData] = useState<{ name: string | null; stonks: number } | null>(null);
-    const [loading, setLoading] = useState(false);
+    const [loading, setLoading] = useState(true); // Start loading true
+
+    // Auth: Check player (Auto-login)
+    useEffect(() => {
+        const userUid = localStorage.getItem('user_uid');
+        if (!userUid) {
+            router.push('/login');
+            return;
+        }
+        setUid(userUid);
+        handleAuthVerify(userUid);
+    }, []);
 
     // --- MATCH STATE ---
     const [playerRole, setPlayerRole] = useState<Role | null>(null);
@@ -318,9 +333,9 @@ export default function OddEveGame() {
     };
 
     const resetGame = () => {
-        setGameState('AUTH');
-        setUid('');
-        setPlayerData(null);
+        setGameState('BET');
+        // setUid(''); // Keep UID
+        // setPlayerData(null); // Keep Data
         resetMatch();
     };
 
@@ -343,12 +358,11 @@ export default function OddEveGame() {
 
     // AUTH & BET are now handled by Standard components separately
     const handleAuthVerify = async (id: string) => {
-        setUid(id);
         setLoading(true);
         const { data } = await supabase.from('players').select('name, stonks').eq('uid', id).single();
         if (data) {
             setPlayerData(data);
-            setGameState('BET');
+            // GameState is already BET
         } else {
             showToast('Player not found', 'error');
         }
@@ -366,22 +380,7 @@ export default function OddEveGame() {
         setLoading(false);
     };
 
-    // --- RENDER HELPERS ---
-    if (gameState === 'AUTH') {
-        return (
-            <StandardAuth
-                onVerify={handleAuthVerify}
-                loading={loading}
-                title={
-                    <h1 className="text-4xl font-black uppercase text-center mb-8">
-                        ODD-EVE <span className="text-neo-pink">AI</span>
-                    </h1>
-                }
-                themeColor="neo-yellow"
-                bgColor="bg-neo-yellow"
-            />
-        );
-    }
+
 
     if (gameState === 'BET' && playerData) {
         return (
@@ -390,7 +389,7 @@ export default function OddEveGame() {
                 uid={uid}
                 entryFee={GAME_CONSTANTS.ENTRY_FEE}
                 onPlay={payAndStart}
-                onCancel={() => setGameState('AUTH')}
+                onCancel={() => router.push('/games')}
                 loading={loading}
                 themeColor="neo-yellow"
                 bgColor="bg-neo-yellow"

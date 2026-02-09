@@ -6,7 +6,6 @@ import { useRouter } from 'next/navigation';
 import { supabase } from '@/utils/supabase';
 import { useToast } from '@/contexts/ToastContext';
 import { GAME_CONSTANTS } from '@/utils/game-constants';
-import StandardAuth from '@/components/game-ui/StandardAuth';
 import StandardBet from '@/components/game-ui/StandardBet';
 import { Camera, Timer, CheckCircle, XCircle, ArrowRight, Loader2 } from 'lucide-react';
 
@@ -43,7 +42,7 @@ export default function ScavengerHunt() {
     const { showToast } = useToast();
     const router = useRouter();
     const webcamRef = useRef<Webcam>(null);
-    const [gameState, setGameState] = useState<'AUTH' | 'BET' | 'PLAYING' | 'VERIFYING' | 'FINISHED'>('AUTH');
+    const [gameState, setGameState] = useState<'AUTH' | 'BET' | 'PLAYING' | 'VERIFYING' | 'FINISHED'>('BET'); // Start at BET
     const [timeLeft, setTimeLeft] = useState(90);
     const [itemTimeLeft, setItemTimeLeft] = useState(9);
     const [score, setScore] = useState(0);
@@ -51,7 +50,7 @@ export default function ScavengerHunt() {
     const [feedback, setFeedback] = useState<'NONE' | 'CORRECT' | 'WRONG'>('NONE');
     const [uid, setUid] = useState<string | null>(null);
     const [playerData, setPlayerData] = useState<{ name: string | null; stonks: number } | null>(null);
-    const [loading, setLoading] = useState(false);
+    const [loading, setLoading] = useState(true); // Start loading true
 
     // Timer refs
     const feedbackTimerRef = useRef<NodeJS.Timeout | null>(null);
@@ -62,6 +61,29 @@ export default function ScavengerHunt() {
             if (feedbackTimerRef.current) clearTimeout(feedbackTimerRef.current);
         };
     }, []);
+
+    // Auth: Check player (Auto-login)
+    useEffect(() => {
+        const userUid = localStorage.getItem('user_uid');
+        if (!userUid) {
+            router.push('/login');
+            return;
+        }
+        setUid(userUid);
+        checkPlayer(userUid);
+    }, []);
+
+    const checkPlayer = async (id: string) => {
+        setLoading(true);
+        const { data } = await supabase.from('players').select('*').eq('uid', id).single();
+        if (data) {
+            setPlayerData(data);
+            // GameState initialized to BET
+        } else {
+            showToast('Player not found', 'error');
+        }
+        setLoading(false);
+    };
 
     // Use StandardAuth instead
     useEffect(() => {
@@ -211,30 +233,7 @@ export default function ScavengerHunt() {
                 ← EXIT
             </button>
 
-            {gameState === 'AUTH' && (
-                <StandardAuth
-                    onVerify={async (id) => {
-                        setUid(id);
-                        setLoading(true);
-                        const { data } = await supabase.from('players').select('*').eq('uid', id).single();
-                        if (data) {
-                            setPlayerData(data);
-                            setGameState('BET');
-                        } else {
-                            showToast('Player not found', 'error');
-                        }
-                        setLoading(false);
-                    }}
-                    loading={loading}
-                    title={
-                        <h1 className="text-4xl md:text-6xl font-heading text-white mb-4 animate-pulse">
-                            EMOJI SCAVENGER HUNT
-                        </h1>
-                    }
-                    themeColor="neo-green"
-                    bgColor="bg-black"
-                />
-            )}
+
 
             {gameState === 'BET' && playerData && (
                 <StandardBet
@@ -242,7 +241,7 @@ export default function ScavengerHunt() {
                     uid={uid || undefined}
                     entryFee={GAME_CONSTANTS.ENTRY_FEE}
                     onPlay={startGame}
-                    onCancel={() => setGameState('AUTH')}
+                    onCancel={() => router.push('/games')}
                     loading={loading}
                     themeColor="neo-green"
                     bgColor="bg-black"
@@ -353,7 +352,7 @@ export default function ScavengerHunt() {
                                 <span>{playerData?.stonks} 💎</span>
                             </div>
                             <button
-                                onClick={() => setGameState('AUTH')}
+                                onClick={() => router.push('/games')}
                                 className="w-full bg-black text-white p-3 font-bold hover:bg-gray-800"
                             >
                                 EXIT

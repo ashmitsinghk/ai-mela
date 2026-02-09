@@ -7,17 +7,22 @@ import gameData from './game-data.json';
 import { supabase } from '@/utils/supabase';
 import { useToast } from '@/contexts/ToastContext';
 import { GAME_CONSTANTS } from '@/utils/game-constants';
-import StandardAuth from '@/components/game-ui/StandardAuth';
 import StandardBet from '@/components/game-ui/StandardBet';
 
 type GamePhase = 'AUTH' | 'BET' | 'PLAYING' | 'RESULT';
 
+
+import { useRouter } from 'next/navigation';
+
 export default function DumbCharadesGame() {
+  const router = useRouter();
   const { showToast } = useToast();
-  const [gamePhase, setGamePhase] = useState<GamePhase>('AUTH');
+  const [gamePhase, setGamePhase] = useState<GamePhase>('BET'); // Start at BET
   const [uid, setUid] = useState('');
   const [playerData, setPlayerData] = useState<{ name: string | null; stonks: number } | null>(null);
-  const [authLoading, setAuthLoading] = useState(false);
+  const [authLoading, setAuthLoading] = useState(true); // Start loading true
+
+  // ... (rest of state)
 
   // Added timeLeft to state
   const [gameState, setGameState] = useState<GameState & { timeLeft: number }>({
@@ -91,8 +96,17 @@ export default function DumbCharadesGame() {
     }, 1500);
   };
 
+  // Auth: Check player (Auto-login)
+  useEffect(() => {
+    const userUid = localStorage.getItem('user_uid');
+    if (!userUid) {
+      router.push('/login');
+      return;
+    }
+    setUid(userUid);
+    checkPlayer(userUid);
+  }, []);
 
-  // Auth: Check player
   const checkPlayer = async (checkUid: string) => {
     setAuthLoading(true);
     try {
@@ -103,16 +117,19 @@ export default function DumbCharadesGame() {
         .single();
 
       if (error || !data) {
-        showToast('Player not found!', 'error');
-        setPlayerData(null);
+        showToast('Player data not found!', 'error');
+        // router.push('/login');
       } else {
         setPlayerData(data);
-        setGamePhase('BET');
+        // GamePhase is already BET
       }
     } finally {
       setAuthLoading(false);
     }
   };
+
+  // ... (rest of component logic)
+
 
   // Pay 20 Stonks and start game
   const payAndStart = async () => {
@@ -340,6 +357,7 @@ export default function DumbCharadesGame() {
 
 
 
+
   // Initialize game on mount when phase becomes 'PLAYING'
   useEffect(() => {
     if (gamePhase === 'PLAYING' && gameState.round === 0) {
@@ -347,38 +365,9 @@ export default function DumbCharadesGame() {
     }
   }, [gamePhase]);
 
-  // AUTH SCREEN
-  if (gamePhase === 'AUTH') {
-    return (
-      <StandardAuth
-        onVerify={(id) => { setUid(id); checkPlayer(id); }}
-        loading={authLoading}
-        title={
-          <h1 className="text-3xl font-black uppercase text-center">
-            <span className="inline-block bg-[#A855F7] text-white px-4 py-2 -skew-x-6 border-4 border-black">
-              DUMB CHARADES
-            </span>
-          </h1>
-        }
-        themeColor="purple-500"
-        backgroundElement={
-          <div
-            className="absolute inset-0"
-            style={{
-              backgroundImage: `
-              linear-gradient(#dbeafe 1px, transparent 1px),
-              linear-gradient(90deg, #dbeafe 1px, transparent 1px)
-            `,
-              backgroundSize: '24px 24px',
-            }}
-          />
-        }
-      />
-    );
-  }
-
   // BET SCREEN
   if (gamePhase === 'BET' && playerData) {
+
     return (
       <StandardBet
         playerData={playerData}

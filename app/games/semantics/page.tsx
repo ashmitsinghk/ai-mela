@@ -6,7 +6,7 @@ import { Trophy, RefreshCw, Loader2 } from 'lucide-react';
 import { supabase } from '@/utils/supabase';
 import { useToast } from '@/contexts/ToastContext';
 import { GAME_CONSTANTS } from '@/utils/game-constants';
-import StandardAuth from '@/components/game-ui/StandardAuth';
+
 import StandardBet from '@/components/game-ui/StandardBet';
 
 type GamePhase = 'AUTH' | 'BET' | 'PLAYING' | 'RESULT';
@@ -27,15 +27,30 @@ const GAME_HEIGHT = 600;
 const WORD_BOTTOM_THRESHOLD = GAME_HEIGHT - 50;
 const SIMILARITY_THRESHOLD = 0.45; // 45% similarity required
 
+
+import { useRouter } from 'next/navigation';
+
 export default function SemanticClearGame() {
   const { isReady, isLoading, progress, error, calculateSimilarity } = useSemanticSimilarity();
+  const router = useRouter();
 
   // --- AUTH & USER STATE ---
   const { showToast } = useToast();
-  const [gamePhase, setGamePhase] = useState<GamePhase>('AUTH');
+  const [gamePhase, setGamePhase] = useState<GamePhase>('BET'); // Start at BET
   const [uid, setUid] = useState('');
   const [playerData, setPlayerData] = useState<{ name: string | null; stonks: number } | null>(null);
-  const [authLoading, setAuthLoading] = useState(false);
+  const [authLoading, setAuthLoading] = useState(true); // Start loading true
+
+  // Auth: Check player (Auto-login)
+  useEffect(() => {
+    const userUid = localStorage.getItem('user_uid');
+    if (!userUid) {
+      router.push('/login');
+      return;
+    }
+    setUid(userUid);
+    checkPlayer(userUid);
+  }, []);
 
   const [words, setWords] = useState<Word[]>([]);
   const [inputValue, setInputValue] = useState<string>('');
@@ -63,16 +78,8 @@ export default function SemanticClearGame() {
   const [survivalSeconds, setSurvivalSeconds] = useState(0);
 
   // --- AUTH & DEDUCTION ---
-  const checkPlayer = async (customUid?: string) => {
-    // Handling e.preventDefault() if it's an event, or string if called directly
-    let checkKv = uid;
-    if (typeof customUid === 'string') {
-      checkKv = customUid;
-    } else if (customUid && (customUid as any).preventDefault) {
-      (customUid as any).preventDefault();
-    }
-
-    const finalUid = checkKv.trim();
+  const checkPlayer = async (id: string) => {
+    const finalUid = id.trim();
     if (!finalUid) return;
 
     setAuthLoading(true);
@@ -130,9 +137,9 @@ export default function SemanticClearGame() {
   };
 
   const resetToAuth = () => {
-    setGamePhase('AUTH');
-    setUid('');
-    setPlayerData(null);
+    setGamePhase('BET');
+    // setUid(''); // Keep UID
+    // setPlayerData(null); // Keep Data
     restartGame();
   };
 
@@ -342,26 +349,7 @@ export default function SemanticClearGame() {
       if (spawnIntervalRef.current) clearInterval(spawnIntervalRef.current);
     };
   }, [isReady, gameOver, gamePhase]);
-  // AUTH SCREEN
-  if (gamePhase === 'AUTH') {
-    return (
-      <StandardAuth
-        onVerify={(id) => {
-          setUid(id);
-          checkPlayer(id); // Pass ID directly
-        }}
-        loading={authLoading}
-        title={
-          <h1 className="text-4xl font-heading mb-6 text-center uppercase text-black">
-            Semantic <span className="text-neo-pink">Clear</span>
-          </h1>
-        }
-        themeColor="neo-pink"
-        bgImage="/semantics.gif"
-        bgColor="bg-neo-cyan"
-      />
-    );
-  }
+
 
   // BET SCREEN
   if (gamePhase === 'BET' && playerData) {
@@ -371,7 +359,7 @@ export default function SemanticClearGame() {
         uid={uid}
         entryFee={GAME_CONSTANTS.ENTRY_FEE}
         onPlay={payAndStart}
-        onCancel={resetToAuth}
+        onCancel={() => router.push('/games')}
         loading={authLoading}
         themeColor="neo-green"
         bgImage="/semantics.gif"

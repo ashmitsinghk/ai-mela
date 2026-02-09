@@ -5,7 +5,6 @@ import { supabase } from '@/utils/supabase';
 import { Loader2, Newspaper, Trophy, TrendingUp } from 'lucide-react';
 import { useToast } from '@/contexts/ToastContext';
 import { GAME_CONSTANTS } from '@/utils/game-constants';
-import StandardAuth from '@/components/game-ui/StandardAuth';
 import StandardBet from '@/components/game-ui/StandardBet';
 import { generateFakeHeadlines } from './headline-generator';
 import newsData from './news-data.json';
@@ -34,13 +33,17 @@ function shuffleArray<T>(array: T[]): T[] {
   return shuffled;
 }
 
+
+import { useRouter } from 'next/navigation';
+
 export default function HeadlinesGame() {
+  const router = useRouter();
   const { showToast } = useToast();
   // AUTH & USER STATE
-  const [gameState, setGameState] = useState<GamePhase>('AUTH');
+  const [gameState, setGameState] = useState<GamePhase>('BET'); // Start at BET
   const [uid, setUid] = useState('');
   const [playerData, setPlayerData] = useState<{ name: string | null; stonks: number } | null>(null);
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true); // Start loading true
 
   // Timer Ref
   const nextRoundRef = useRef<NodeJS.Timeout | null>(null);
@@ -75,20 +78,29 @@ export default function HeadlinesGame() {
     // DO NOT reset usedHeadlines
   };
 
-  // Reset game to AUTH
+  // Reset game to BET (instead of AUTH)
   const resetGame = () => {
-    setGameState('AUTH');
-    setUid('');
-    setPlayerData(null);
+    setGameState('BET');
     setCurrentRound(1);
     setHeadlines([]);
     setSelectedIndex(null);
     setRoundResults([]);
+    // Keep UID and playerData
     setUsedHeadlines(new Set());
     setTimeLeft(30);
   };
 
-  // AUTH: Check player
+  // AUTH: Check player (Auto-login)
+  useEffect(() => {
+    const userUid = localStorage.getItem('user_uid');
+    if (!userUid) {
+      router.push('/login');
+      return;
+    }
+    setUid(userUid);
+    checkPlayer(userUid);
+  }, []);
+
   const checkPlayer = async (checkUid: string) => {
     setLoading(true);
     try {
@@ -99,11 +111,11 @@ export default function HeadlinesGame() {
         .single();
 
       if (error || !data) {
-        showToast('Player not found!', 'error');
-        setPlayerData(null);
+        showToast('Player data not found!', 'error');
+        // router.push('/login');
       } else {
         setPlayerData(data);
-        setGameState('BET');
+        // GamePhase is already BET
       }
     } finally {
       setLoading(false);
@@ -193,8 +205,6 @@ export default function HeadlinesGame() {
     }
   };
 
-
-
   // Timer countdown effect
   useEffect(() => {
     if (gameState !== 'PLAYING' || selectedIndex !== null || generatingHeadlines) return;
@@ -227,7 +237,6 @@ export default function HeadlinesGame() {
     setSelectedIndex(-1); // Use -1 to indicate time expired
 
     // Move to next round after delay
-    // Move to next round after delay
     nextRoundRef.current = setTimeout(() => {
       if (currentRound < TOTAL_ROUNDS) {
         setCurrentRound(currentRound + 1);
@@ -256,7 +265,6 @@ export default function HeadlinesGame() {
 
     setRoundResults([...roundResults, result]);
 
-    // Move to next round after delay
     // Move to next round after delay
     nextRoundRef.current = setTimeout(() => {
       if (currentRound < TOTAL_ROUNDS) {
@@ -303,6 +311,9 @@ export default function HeadlinesGame() {
   const correctCount = roundResults.filter(r => r.correct).length;
   const totalReward = correctCount * POINTS_PER_CORRECT;
 
+
+  // ... (render return)
+
   return (
     <div className="h-screen w-screen overflow-hidden flex flex-col" style={{
       backgroundImage: `url("/Newspaper collage.jpeg")`,
@@ -312,27 +323,16 @@ export default function HeadlinesGame() {
       backgroundAttachment: 'fixed',
     }}>
       <div className="flex-1 w-full max-w-5xl mx-auto p-4 flex flex-col justify-center items-center h-full">
-        {/* AUTH PHASE */}
-        {gameState === 'AUTH' && (
-          <StandardAuth
-            onVerify={(id) => { setUid(id); checkPlayer(id); }}
-            loading={loading}
-            title={
-              <div className="flex items-center justify-center gap-4">
-                <Newspaper className="w-16 h-16 text-blue-600" />
-                <div className="text-left">
-                  <h1 className="text-4xl font-heading font-bold text-gray-800 uppercase leading-none">Headline</h1>
-                  <h1 className="text-4xl font-heading font-bold text-gray-800 uppercase leading-none">Hunter</h1>
-                </div>
-              </div>
-            }
-            themeColor="blue-600"
-            bgImage="/Newspaper collage.jpeg"
-          />
+
+        {loading && !playerData && (
+          <div className="flex justify-center items-center h-full">
+            <Loader2 className="animate-spin h-10 w-10 text-blue-600" />
+          </div>
         )}
 
         {/* BET PHASE */}
         {gameState === 'BET' && playerData && (
+
           <StandardBet
             playerData={playerData}
             uid={uid}

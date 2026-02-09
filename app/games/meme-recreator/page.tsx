@@ -6,7 +6,6 @@ import { useRouter } from 'next/navigation';
 import { supabase } from '@/utils/supabase';
 import { useToast } from '@/contexts/ToastContext';
 import { GAME_CONSTANTS } from '@/utils/game-constants';
-import StandardAuth from '@/components/game-ui/StandardAuth';
 import StandardBet from '@/components/game-ui/StandardBet';
 import Script from 'next/script';
 import { Loader2, CheckCircle, XCircle } from 'lucide-react';
@@ -119,10 +118,10 @@ export default function MemeRecreator() {
     const { showToast } = useToast();
     const router = useRouter();
     const webcamRef = useRef<Webcam>(null);
-    const [gameState, setGameState] = useState<'AUTH' | 'BET' | 'PLAYING' | 'SUCCESS' | 'FINISHED'>('AUTH');
+    const [gameState, setGameState] = useState<'AUTH' | 'BET' | 'PLAYING' | 'SUCCESS' | 'FINISHED'>('BET'); // Start at BET
     const [modelLoaded, setModelLoaded] = useState(false);
     const [playerData, setPlayerData] = useState<{ name: string | null; stonks: number } | null>(null);
-    const [loading, setLoading] = useState(false);
+    const [loading, setLoading] = useState(true); // Start loading true
 
     // Timer
     const [totalTimeLeft, setTotalTimeLeft] = useState(90);
@@ -147,11 +146,28 @@ export default function MemeRecreator() {
         };
     }, []);
 
-    // Init User
-    // removed local storage check in favor of StandardAuth
+    // Auth: Check player (Auto-login)
     useEffect(() => {
-        // init
+        const userUid = localStorage.getItem('user_uid');
+        if (!userUid) {
+            router.push('/login');
+            return;
+        }
+        setUid(userUid);
+        checkPlayer(userUid);
     }, []);
+
+    const checkPlayer = async (id: string) => {
+        setLoading(true);
+        const { data } = await supabase.from('players').select('*').eq('uid', id).single();
+        if (data) {
+            setPlayerData(data);
+            // GameState initialized to BET
+        } else {
+            showToast('Player not found', 'error');
+        }
+        setLoading(false);
+    };
 
     // Robust loading for CDN scripts
     useEffect(() => {
@@ -327,30 +343,7 @@ export default function MemeRecreator() {
                 ← EXIT
             </button>
 
-            {gameState === 'AUTH' && (
-                <StandardAuth
-                    onVerify={async (id) => {
-                        setUid(id);
-                        setLoading(true);
-                        const { data } = await supabase.from('players').select('*').eq('uid', id).single();
-                        if (data) {
-                            setPlayerData(data);
-                            setGameState('BET');
-                        } else {
-                            showToast('Player not found', 'error');
-                        }
-                        setLoading(false);
-                    }}
-                    loading={loading}
-                    title={
-                        <h1 className="text-4xl md:text-6xl font-heading text-white mb-4 animate-pulse">
-                            MEME RECREATOR
-                        </h1>
-                    }
-                    themeColor="neo-green"
-                    bgColor="bg-black"
-                />
-            )}
+
 
             {gameState === 'BET' && playerData && (
                 <StandardBet
@@ -358,7 +351,7 @@ export default function MemeRecreator() {
                     uid={uid || undefined}
                     entryFee={GAME_CONSTANTS.ENTRY_FEE}
                     onPlay={startGame}
-                    onCancel={() => setGameState('AUTH')}
+                    onCancel={() => router.push('/games')}
                     loading={loading || !modelLoaded}
                     themeColor="neo-green"
                     bgColor="bg-black"
@@ -444,7 +437,7 @@ export default function MemeRecreator() {
                             </span>
                         </div>
 
-                        <button onClick={() => setGameState('AUTH')} className="w-full bg-black text-white py-3 mt-8 font-bold">EXIT</button>
+                        <button onClick={() => router.push('/games')} className="w-full bg-black text-white py-3 mt-8 font-bold">EXIT</button>
                     </div>
                 </div>
             )}

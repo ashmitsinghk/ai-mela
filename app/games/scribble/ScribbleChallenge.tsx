@@ -7,7 +7,6 @@ import CircularTimer from './components/CircularTimer';
 import { supabase } from '@/utils/supabase';
 import { useToast } from '@/contexts/ToastContext';
 import { GAME_CONSTANTS } from '@/utils/game-constants';
-import StandardAuth from '@/components/game-ui/StandardAuth';
 import StandardBet from '@/components/game-ui/StandardBet';
 
 import { Loader2, Palette, Send, Eraser, Trash2, User, Play, Clock, Trophy, PaintBucket } from 'lucide-react';
@@ -39,7 +38,11 @@ const AVATARS = ['👤', '😤', '😎', '🤪', '🤓', '🤖', '👽', '👻',
 
 const BRUSH_SIZES = [2, 4, 8, 12, 16];
 
+
+import { useRouter } from 'next/navigation';
+
 export default function ScribbleChallenge() {
+  const router = useRouter();
   const { showToast } = useToast();
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const chatEndRef = useRef<HTMLDivElement>(null);
@@ -48,7 +51,7 @@ export default function ScribbleChallenge() {
   const [timeLeft, setTimeLeft] = useState(30);
   const [wordOptions, setWordOptions] = useState<string[]>([]);
   const [selectionTimeLeft, setSelectionTimeLeft] = useState(10);
-  const [gameState, setGameState] = useState<GameState>('AUTH');
+  const [gameState, setGameState] = useState<GameState>('BET'); // Start at BET
   const [currentAiGuess, setCurrentAiGuess] = useState('');
   const [shieldActive, setShieldActive] = useState(false);
   const [analyzing, setAnalyzing] = useState(false);
@@ -67,7 +70,7 @@ export default function ScribbleChallenge() {
   // Auth state
   const [uid, setUid] = useState('');
   const [playerData, setPlayerData] = useState<{ name: string | null; stonks: number; avatar?: string } | null>(null);
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true); // Start loading true
 
   // Refs to avoid stale closure issues in intervals
   const gameStateRef = useRef<GameState>(gameState);
@@ -110,6 +113,17 @@ export default function ScribbleChallenge() {
     console.log('🔄 targetWordRef updated to:', targetWord);
   }, [targetWord]);
 
+  // Auth: Check player (Auto-login)
+  useEffect(() => {
+    const userUid = localStorage.getItem('user_uid');
+    if (!userUid) {
+      router.push('/login');
+      return;
+    }
+    setUid(userUid);
+    checkPlayer(null, userUid);
+  }, []);
+
   // Auth functions
   const checkPlayer = async (e: React.FormEvent | null, specificId?: string) => {
     if (e) e.preventDefault();
@@ -127,11 +141,11 @@ export default function ScribbleChallenge() {
         // Player not found or error, create pseudo-session for demo/play
         // In a real app we'd create a user. For now, just set state.
         setPlayerData({ name: idToCheck, stonks: 50, avatar: AVATARS[avatarIndex] });
-        setGameState('BET');
+        // GamePhase is already BET
         showToast('Player not found! using demo mode.', 'info');
       } else {
         setPlayerData({ ...data, avatar: AVATARS[avatarIndex] });
-        setGameState('BET');
+        // GamePhase is already BET
       }
     } finally {
       setLoading(false);
@@ -154,7 +168,6 @@ export default function ScribbleChallenge() {
   const randomizeAvatar = () => {
     setAvatarIndex(Math.floor(Math.random() * AVATARS.length));
   };
-
 
 
   const payAndStart = async () => {
@@ -189,7 +202,6 @@ export default function ScribbleChallenge() {
     // Initialize Round State
     setCurrentRound(1);
     setRoundsWon(0);
-    setRoundsWon(0);
     setUsedWords(new Set());
     setChatMessages([]); // Clear chat for new game
 
@@ -204,13 +216,10 @@ export default function ScribbleChallenge() {
   };
 
   const resetGame = () => {
-    setGameState('AUTH');
-    setUid('');
-    setPlayerData(null);
+    setGameState('BET');
+    // Keep UID and playerData
     setTargetWord('');
     setTimeLeft(30);
-    setSelectionTimeLeft(10);
-    setWordOptions([]);
     setSelectionTimeLeft(10);
     setWordOptions([]);
     setCurrentAiGuess('');
@@ -804,60 +813,6 @@ export default function ScribbleChallenge() {
       {/* GAME WINDOW CONTAINER */}
       <div className="flex-1 w-full max-w-[1200px] px-2 md:px-4 pb-4 min-h-0 flex flex-col items-center">
 
-        {/* LOBBY / LOGIN */}
-        {/* LOBBY / LOGIN */}
-        {gameState === 'AUTH' && (
-          <StandardAuth
-            onVerify={(id) => { setUid(id); checkPlayer(null, id); }}
-            loading={loading}
-            title={
-              <>
-                <div className="text-4xl md:text-5xl font-black tracking-wider flex items-center justify-center gap-1">
-                  <span className="text-[#FF5959]">s</span>
-                  <span className="text-[#FF9D47]">c</span>
-                  <span className="text-[#FFE647]">r</span>
-                  <span className="text-[#65E068]">i</span>
-                  <span className="text-[#59C7F7]">b</span>
-                  <span className="text-[#5D59FF]">b</span>
-                  <span className="text-[#A859FF]">l</span>
-                  <span className="text-[#FF5959]">e</span>
-                  <span className="text-black">.ai</span>
-                </div>
-
-                <div className="flex flex-col items-center gap-2 mt-4">
-                  <div className="flex items-center gap-4 bg-white/20 px-6 py-3 rounded-full backdrop-blur-sm border-2 border-white/30">
-                    <button
-                      onClick={handlePrevAvatar}
-                      className="w-10 h-10 flex items-center justify-center bg-black/20 hover:bg-black/40 text-white rounded-full transition-all text-xl"
-                    >
-                      ←
-                    </button>
-                    <div className="flex flex-col items-center min-w-[100px]">
-                      <span className="text-6xl drop-shadow-lg mb-1">{AVATARS[avatarIndex]}</span>
-                      <span className="text-white text-xs font-bold uppercase tracking-widest opacity-80">Avatar</span>
-                    </div>
-                    <button
-                      onClick={handleNextAvatar}
-                      className="w-10 h-10 flex items-center justify-center bg-black/20 hover:bg-black/40 text-white rounded-full transition-all text-xl"
-                    >
-                      →
-                    </button>
-                  </div>
-                  <button
-                    onClick={randomizeAvatar}
-                    className="text-white/60 text-xs hover:text-white transition-colors underline decoration-dotted"
-                  >
-                    Randomize
-                  </button>
-                </div>
-              </>
-            }
-
-            themeColor="[#3BA4E8]"
-            bgImage="/Untitled%20(1920%20x%201080%20px)(3).png"
-            bgColor="bg-[#3B63BC]"
-          />
-        )}
 
         {/* BET / CONFIRMATION */}
         {gameState === 'BET' && playerData && (

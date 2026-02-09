@@ -7,17 +7,20 @@ import gameData from './game-data.json';
 import { supabase } from '@/utils/supabase';
 import { useToast } from '@/contexts/ToastContext';
 import { GAME_CONSTANTS } from '@/utils/game-constants';
-import StandardAuth from '@/components/game-ui/StandardAuth';
 import StandardBet from '@/components/game-ui/StandardBet';
 
 type GamePhase = 'AUTH' | 'BET' | 'PLAYING' | 'RESULT';
 
+
+import { useRouter } from 'next/navigation';
+
 export default function DeepfakeDetective() {
+  const router = useRouter();
   const { showToast } = useToast();
-  const [gamePhase, setGamePhase] = useState<GamePhase>('AUTH');
+  const [gamePhase, setGamePhase] = useState<GamePhase>('BET'); // Start at BET
   const [uid, setUid] = useState('');
   const [playerData, setPlayerData] = useState<{ name: string | null; stonks: number } | null>(null);
-  const [authLoading, setAuthLoading] = useState(false);
+  const [authLoading, setAuthLoading] = useState(true); // Start loading true
 
   const [gameState, setGameState] = useState<GameState>({
     round: 0,
@@ -94,6 +97,17 @@ export default function DeepfakeDetective() {
     }, 2000);
   };
 
+  // Auth: Check player (Auto-login)
+  useEffect(() => {
+    const userUid = localStorage.getItem('user_uid');
+    if (!userUid) {
+      router.push('/login');
+      return;
+    }
+    setUid(userUid);
+    checkPlayer(userUid);
+  }, []);
+
   // Auth: Check player
   const checkPlayer = async (uidToCheck: string) => {
     setAuthLoading(true);
@@ -105,11 +119,11 @@ export default function DeepfakeDetective() {
         .single();
 
       if (error || !data) {
-        showToast('Player not found!', 'error');
-        setPlayerData(null);
+        showToast('Player data not found!', 'error');
+        // router.push('/login');
       } else {
         setPlayerData(data);
-        setGamePhase('BET');
+        // GamePhase is already BET
       }
     } finally {
       setAuthLoading(false);
@@ -147,10 +161,8 @@ export default function DeepfakeDetective() {
     setAuthLoading(false);
   };
 
-  const resetToAuth = () => {
-    setGamePhase('AUTH');
-    setUid('');
-    setPlayerData(null);
+  const resetGame = () => {
+    setGamePhase('BET');
     setUsedPairIds([]);
     setGameState({
       round: 0,
@@ -162,6 +174,7 @@ export default function DeepfakeDetective() {
       timeLeft: 15,
     });
   };
+
 
   // Generate round data with randomized positions
   const generateRound = (): RoundData => {
@@ -289,45 +302,13 @@ export default function DeepfakeDetective() {
 
 
 
+
   // Initialize game on mount
   useEffect(() => {
     if (gamePhase === 'PLAYING' && gameState.round === 0) {
       startNewGame();
     }
   }, [gamePhase]);
-
-  // AUTH SCREEN
-  if (gamePhase === 'AUTH') {
-    return (
-      <StandardAuth
-        onVerify={(id) => {
-          setUid(id);
-          checkPlayer(id);
-        }}
-        loading={authLoading}
-        title={
-          <h1 className="text-4xl font-black uppercase text-center">
-            <span className="inline-block bg-orange-500 text-white px-6 py-3 -skew-x-6 border-4 border-black">
-              DEEPFAKE DETECTIVE
-            </span>
-          </h1>
-        }
-        themeColor="orange-500"
-        backgroundElement={
-          <div
-            className="absolute inset-0"
-            style={{
-              backgroundImage: `
-              linear-gradient(#dbeafe 1px, transparent 1px),
-              linear-gradient(90deg, #dbeafe 1px, transparent 1px)
-            `,
-              backgroundSize: '24px 24px',
-            }}
-          />
-        }
-      />
-    );
-  }
 
   // BET SCREEN
   if (gamePhase === 'BET' && playerData) {
@@ -337,9 +318,10 @@ export default function DeepfakeDetective() {
         uid={uid}
         entryFee={GAME_CONSTANTS.ENTRY_FEE}
         onPlay={payAndStart}
-        onCancel={resetToAuth}
+        onCancel={resetGame}
         loading={authLoading}
         themeColor="orange-500"
+
         title={
           <h1 className="text-4xl font-black uppercase text-center">
             <span className="inline-block bg-orange-500 text-white px-6 py-3 -skew-x-6 border-4 border-black">
@@ -422,7 +404,7 @@ export default function DeepfakeDetective() {
             </div>
 
             <button
-              onClick={resetToAuth}
+              onClick={resetGame}
               className="w-full bg-gray-300 text-black text-xl font-black uppercase py-3 px-6 border-4 border-black shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] hover:shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] hover:translate-x-[2px] hover:translate-y-[2px] transition-all"
             >
               EXIT

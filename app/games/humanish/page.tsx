@@ -4,7 +4,6 @@ import { useState, useEffect, useRef } from "react";
 import { Loader2, Coins } from "lucide-react";
 import { supabase } from '@/utils/supabase';
 import { GAME_CONSTANTS } from '@/utils/game-constants';
-import StandardAuth from '@/components/game-ui/StandardAuth';
 import StandardBet from '@/components/game-ui/StandardBet';
 
 type Message = {
@@ -15,13 +14,58 @@ type Message = {
 type PartnerType = "human" | "ai";
 type GameState = "AUTH" | "BET" | "PLAYING" | "RESULT";
 
+
+import { useRouter } from 'next/navigation';
+
 export default function HumanishGame() {
+  const router = useRouter();
   // Auth & General State
-  const [gameState, setGameState] = useState<GameState>("AUTH");
+  const [gameState, setGameState] = useState<GameState>("BET"); // Start at BET
   const [uid, setUid] = useState("");
   const [playerData, setPlayerData] = useState<{ name: string | null; stonks: number } | null>(null);
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true); // Start loading true
   const [authError, setAuthError] = useState("");
+
+  // ... (rest of state)
+
+  // Check Player (Login) - Modified for auto-login
+  useEffect(() => {
+    const userUid = localStorage.getItem('user_uid');
+    if (!userUid) {
+      router.push('/login');
+      return;
+    }
+    setUid(userUid);
+    checkPlayer(userUid);
+  }, []);
+
+  const checkPlayer = async (checkUid: string) => {
+    setLoading(true);
+    setAuthError("");
+
+    try {
+      const { data, error } = await supabase
+        .from('players')
+        .select('name, stonks')
+        .eq('uid', checkUid)
+        .single();
+
+      if (error || !data) {
+        setAuthError("Player data not found.");
+        // Optional: redirect to login if player not found in DB
+        // router.push('/login'); 
+      } else {
+        setPlayerData(data);
+        // GameState is already BET
+      }
+    } catch (err) {
+      console.error("Auth error:", err);
+      setAuthError("Failed to connect. Try again.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
 
   // Game State
   const [timeLeft, setTimeLeft] = useState(90);
@@ -48,32 +92,7 @@ export default function HumanishGame() {
     };
   }, []);
 
-  // Check Player (Login)
-  const checkPlayer = async (checkUid: string) => {
-    setLoading(true);
-    setAuthError("");
 
-    try {
-      const { data, error } = await supabase
-        .from('players')
-        .select('name, stonks')
-        .eq('uid', checkUid)
-        .single();
-
-      if (error || !data) {
-        setAuthError("Player not found! Please check your ID.");
-        setPlayerData(null);
-      } else {
-        setPlayerData(data);
-        setGameState('BET');
-      }
-    } catch (err) {
-      console.error("Auth error:", err);
-      setAuthError("Failed to connect. Try again.");
-    } finally {
-      setLoading(false);
-    }
-  };
 
   // Start game - Deduct Fee & Register
   const startGame = async () => {
@@ -375,88 +394,21 @@ export default function HumanishGame() {
 
   // --- RENDER ---
 
-  const renderAuth = () => (
-    <div className="flex flex-col items-center justify-center min-h-[60vh]">
-      <div className="bg-white border-4 border-black shadow-[8px_8px_0px_0px_rgba(0,0,0,1)] p-8 max-w-md w-full">
-        <h2 className="text-3xl font-bold mb-6 text-center">LOGIN</h2>
 
-        {!playerData ? (
-          <form onSubmit={(e) => { e.preventDefault(); checkPlayer(uid); }} className="space-y-4">
-            <div>
-              <label className="block font-bold text-sm mb-1">ENTER YOUR ID</label>
-              <input
-                type="text"
-                value={uid}
-                onChange={(e) => setUid(e.target.value)}
-                className="w-full p-3 border-2 border-black focus:ring-2 focus:ring-pink-400 focus:outline-none"
-                placeholder="Unique ID..."
-              />
-            </div>
-            {authError && <p className="text-red-500 font-bold text-sm">{authError}</p>}
-            <button
-              type="submit"
-              disabled={loading}
-              className="w-full bg-black text-white font-bold py-3 hover:bg-gray-800 disabled:opacity-50"
-            >
-              {loading ? <Loader2 className="animate-spin mx-auto" /> : "CONNECT"}
-            </button>
-          </form>
-        ) : (
-          <div className="text-center space-y-6">
-            <div className="bg-gray-100 p-4 border-2 border-black">
-              <p className="text-gray-500 text-sm font-bold uppercase">Welcome back</p>
-              <p className="text-2xl font-black">{playerData.name || "Unknown Player"}</p>
-              <div className="flex items-center justify-center gap-2 mt-2 font-bold text-xl text-green-600">
-                <Coins size={24} />
-                {playerData.stonks}
-              </div>
-            </div>
-
-            <div className="space-y-3">
-              <p className="font-bold text-sm">ENTRY FEE: <span className="text-red-500">{GAME_CONSTANTS.ENTRY_FEE} GEMS</span></p>
-              <p className="font-bold text-sm">REWARD: <span className="text-green-600">30 GEMS</span></p>
-            </div>
-
-            <button
-              onClick={startGame}
-              disabled={loading || playerData.stonks < GAME_CONSTANTS.ENTRY_FEE}
-              className="w-full bg-pink-400 hover:bg-pink-500 text-black font-bold py-4 text-xl border-4 border-black shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] hover:shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] hover:translate-x-[2px] hover:translate-y-[2px] transition-all disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              {loading ? <Loader2 className="animate-spin mx-auto" /> : "PAY & PLAY"}
-            </button>
-
-            {authError && <p className="text-red-500 font-bold text-sm">{authError}</p>}
-          </div>
-        )}
-      </div>
-    </div>
-  );
+  // ... (keep return statement and other renders)
 
   return (
     <div className="h-screen overflow-auto bg-gradient-to-br from-pink-100 to-cyan-100 p-4 font-mono">
       <div className="max-w-2xl mx-auto">
 
-
-        {gameState === 'AUTH' && (
-          <StandardAuth
-            onVerify={(id) => { setUid(id); checkPlayer(id); }}
-            loading={loading}
-            title={
-              <div className="text-center mb-4">
-                <h1 className="text-4xl font-bold uppercase text-black mb-2">
-                  HUMAN<span className="text-pink-500">ISH</span>
-                </h1>
-                <p className="text-lg text-gray-700 font-bold">
-                  Chat for 90 seconds. Guess: Human or AI?
-                </p>
-              </div>
-            }
-            themeColor="pink-400"
-            bgColor="bg-transparent"
-          />
+        {loading && !playerData && (
+          <div className="flex justify-center items-center h-screen">
+            <Loader2 className="animate-spin h-10 w-10 text-pink-500" />
+          </div>
         )}
 
         {gameState === 'BET' && playerData && (
+
           <StandardBet
             playerData={playerData}
             uid={uid}
