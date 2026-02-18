@@ -51,6 +51,13 @@ export default function GamesPage() {
       color: 'bg-indigo-400'
     },
     {
+      name: 'Emoji Crypt',
+      path: '/games/emoji-crypt',
+      description: 'Decode the emoji clues to guess movies & songs.',
+      color: 'bg-neo-pink',
+      status: 'NEW'
+    },
+    {
       name: 'Meme Recreator',
       path: '/games/meme-recreator',
       description: 'Recreate viral memes with your body!',

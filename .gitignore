@@ -42,3 +42,4 @@ next-env.d.ts
 public/AI Mela Stalls_20260130_160716_0000-2.pdf
 
 keysfornow.md
+.env*.local
