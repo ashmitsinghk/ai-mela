@@ -8,6 +8,7 @@ import { supabase } from '@/utils/supabase';
 import { useToast } from '@/contexts/ToastContext';
 import { GAME_CONSTANTS } from '@/utils/game-constants';
 import StandardBet from '@/components/game-ui/StandardBet';
+import { useApiKeys } from '@/contexts/ApiKeyContext';
 
 import { Loader2, Palette, Send, Eraser, Trash2, User, Play, Clock, Trophy, PaintBucket } from 'lucide-react';
 
@@ -44,6 +45,7 @@ import { useRouter } from 'next/navigation';
 export default function ScribbleChallenge() {
   const router = useRouter();
   const { showToast } = useToast();
+  const { groqKey, setModalOpen } = useApiKeys();
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const chatEndRef = useRef<HTMLDivElement>(null);
   const [isDrawing, setIsDrawing] = useState(false);
@@ -576,9 +578,14 @@ export default function ScribbleChallenge() {
     }
 
     console.log('🚀 Calling server action...');
-    const result = await analyzeDrawing(imageData, currentTargetWord);
+    const result = await analyzeDrawing(imageData, currentTargetWord, groqKey || undefined);
     console.log('Analysis result:', result);
     setAnalyzing(false);
+
+    if (result.error === 'API key not configured' || (result.error && result.error.includes('401'))) {
+      setModalOpen(true);
+      return;
+    }
 
     if (result.shieldActive) {
       setShieldActive(true);

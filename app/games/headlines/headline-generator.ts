@@ -2,25 +2,36 @@
 
 import Groq from 'groq-sdk';
 
-const groq = new Groq({
-  apiKey: process.env.GROQ_API_KEY || '',
-});
+
 
 export interface HeadlineSet {
   real: string;
   fakes: string[];
 }
 
+export interface ApiKeys {
+  groq?: string;
+  gemini?: string;
+}
+
 /**
  * Server Action: Takes a real headline and generates 2 fake headlines that match its style
  * Uses Groq API with Llama model for fast generation
  */
-export async function generateFakeHeadlines(realHeadline: string): Promise<HeadlineSet> {
+export async function generateFakeHeadlines(realHeadline: string, apiKeys?: ApiKeys): Promise<HeadlineSet> {
+  // Use runtime key if provided, otherwise fallback to env
+  const groqKey = apiKeys?.groq || process.env.GROQ_API_KEY;
+
   try {
-    if (!process.env.GROQ_API_KEY) {
+    if (!groqKey) {
       console.error('❌ No Groq API key found');
       throw new Error('API key not configured');
     }
+
+    // Initialize Groq client with specific key for this request
+    const groqClient = new Groq({
+      apiKey: groqKey,
+    });
 
     const systemPrompt = `You are an expert news satirist and creative writer. Your task is to take a real, bizarre news headline and create two 'ridiculous' fake headlines.
 
@@ -36,7 +47,7 @@ Rules for Fakes:
 
     console.log('🎯 Generating fake headlines for:', realHeadline);
 
-    const response = await groq.chat.completions.create({
+    const response = await groqClient.chat.completions.create({
       model: 'llama-3.3-70b-versatile',
       messages: [
         { role: 'system', content: systemPrompt },
@@ -65,16 +76,18 @@ Rules for Fakes:
   } catch (error: any) {
     console.error('❌ Headline generation error:', error);
     console.log('🔄 Attempting fallback to Gemini...');
-    return await generateFakeHeadlinesWithGemini(realHeadline);
+    return await generateFakeHeadlinesWithGemini(realHeadline, apiKeys?.gemini);
   }
 }
 
 /**
  * Alternative: Use Gemini for headline generation (if Groq quota is exhausted)
  */
-export async function generateFakeHeadlinesWithGemini(realHeadline: string): Promise<HeadlineSet> {
+export async function generateFakeHeadlinesWithGemini(realHeadline: string, apiKeyOverride?: string): Promise<HeadlineSet> {
   try {
-    if (!process.env.GEMINI_API_KEY) {
+    const apiKey = apiKeyOverride || process.env.GEMINI_API_KEY;
+
+    if (!apiKey) {
       console.error('❌ No Gemini API key found');
       throw new Error('API key not configured');
     }
@@ -94,7 +107,7 @@ Rules for Fakes:
     console.log('🎯 Generating fake headlines with Gemini for:', realHeadline);
 
     const response = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${process.env.GEMINI_API_KEY}`,
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`,
       {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },

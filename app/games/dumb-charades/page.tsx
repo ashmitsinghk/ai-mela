@@ -228,7 +228,7 @@ export default function DumbCharadesGame() {
 
       if (!response.ok) {
         if (response.status === 401) {
-          showToast("API Key Missing or Invalid! Please check settings.", "error");
+          // Prompt for keys without error message
           setModalOpen(true);
         }
         throw new Error('Failed to generate options from API');

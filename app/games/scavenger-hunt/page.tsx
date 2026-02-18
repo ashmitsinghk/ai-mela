@@ -7,6 +7,7 @@ import { supabase } from '@/utils/supabase';
 import { useToast } from '@/contexts/ToastContext';
 import { GAME_CONSTANTS } from '@/utils/game-constants';
 import StandardBet from '@/components/game-ui/StandardBet';
+import { useApiKeys } from '@/contexts/ApiKeyContext';
 import { Camera, Timer, CheckCircle, XCircle, ArrowRight, Loader2 } from 'lucide-react';
 
 const ITEMS = [
@@ -41,6 +42,7 @@ const ITEMS = [
 export default function ScavengerHunt() {
     const { showToast } = useToast();
     const router = useRouter();
+    const { geminiKey, setModalOpen } = useApiKeys();
     const webcamRef = useRef<Webcam>(null);
     const [gameState, setGameState] = useState<'AUTH' | 'BET' | 'PLAYING' | 'VERIFYING' | 'FINISHED'>('BET'); // Start at BET
     const [timeLeft, setTimeLeft] = useState(90);
@@ -162,9 +164,22 @@ export default function ScavengerHunt() {
         try {
             const res = await fetch('/api/verify-scavenger-item', {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
+                headers: {
+                    'Content-Type': 'application/json',
+                    'x-google-api-key': geminiKey || ''
+                },
                 body: JSON.stringify({ image: imageSrc, target: currentItem.label }),
             });
+
+            if (!res.ok) {
+                if (res.status === 401) {
+                    setModalOpen(true);
+                    setGameState('PLAYING');
+                    return;
+                }
+                throw new Error('Verification failed');
+            }
+
             const data = await res.json();
 
             if (data.match) {

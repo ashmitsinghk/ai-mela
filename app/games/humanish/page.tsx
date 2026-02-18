@@ -297,8 +297,9 @@ export default function HumanishGame() {
       if (!response.ok) {
         if (response.status === 401) {
           setModalOpen(true);
-          // Show a system message or toast?
-          setMessages(prev => [...prev, { sender: "partner", text: "[SYSTEM]: API Key Error. Please check settings." }]);
+          setIsWaitingForReply(false);
+          // Suppress system error message
+          return;
         }
       }
 

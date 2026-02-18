@@ -3,9 +3,10 @@
 import Groq from 'groq-sdk';
 
 const groq = new Groq({
-  apiKey: process.env.GROQ_API_KEY || '',
+  apiKey: process.env.GROQ_API_KEY || 'dummy_init', // Init with dummy if empty, will override locally
 });
 
+// ... interface ...
 export interface ScribbleGuessResult {
   guess: string;
   confidence: number;
@@ -21,29 +22,37 @@ export interface ScribbleGuessResult {
  */
 export async function analyzeDrawing(
   imageBase64: string,
-  targetWord: string
+  targetWord: string,
+  apiKeyOverride?: string
 ): Promise<ScribbleGuessResult> {
   console.log('=== SERVER ACTION CALLED ===');
-  console.log('Target word:', targetWord);
-  console.log('Image data length:', imageBase64.length);
-  console.log('Image preview:', imageBase64.substring(0, 50) + '...');
+
+  const apiKey = apiKeyOverride || process.env.GROQ_API_KEY;
+
+  if (!apiKey) {
+    console.error('❌ No API key found');
+    return {
+      guess: '',
+      confidence: 0,
+      shieldActive: false,
+      error: 'API key not configured',
+    };
+  }
+
+  // Create local client with specific key
+  const groqClient = new Groq({
+    apiKey: apiKey,
+  });
 
   try {
-    if (!process.env.GROQ_API_KEY) {
-      console.error('❌ No API key found');
-      return {
-        guess: '',
-        confidence: 0,
-        shieldActive: false,
-        error: 'API key not configured',
-      };
-    }
+    // ...
+
 
     console.log('✓ API key found, calling Groq...');
 
     // Call Groq Vision API
-    const response = await groq.chat.completions.create({
-      model: 'meta-llama/llama-4-scout-17b-16e-instruct',
+    const response = await groqClient.chat.completions.create({
+      model: 'llama-3.2-11b-vision-preview', // Updated to vision model
       messages: [
         {
           role: 'user',

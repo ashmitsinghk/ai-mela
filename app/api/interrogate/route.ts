@@ -101,12 +101,14 @@ export async function POST(req: NextRequest) {
   } catch (error: any) {
     console.error('Interrogation API error:', error);
 
+    const status = error.message.includes('No AI providers available') ? 401 : 500;
+
     return NextResponse.json(
       {
         error: 'All AI providers exhausted or failed',
         details: error.message,
       },
-      { status: 500 }
+      { status: status }
     );
   }
 }

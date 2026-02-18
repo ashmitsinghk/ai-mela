@@ -8,6 +8,7 @@ import { GAME_CONSTANTS } from '@/utils/game-constants';
 import StandardBet from '@/components/game-ui/StandardBet';
 import { generateFakeHeadlines } from './headline-generator';
 import newsData from './news-data.json';
+import { useApiKeys } from '@/contexts/ApiKeyContext';
 
 type GamePhase = 'AUTH' | 'BET' | 'PLAYING' | 'RESULT';
 
@@ -44,6 +45,7 @@ export default function HeadlinesGame() {
   const [uid, setUid] = useState('');
   const [playerData, setPlayerData] = useState<{ name: string | null; stonks: number } | null>(null);
   const [loading, setLoading] = useState(true); // Start loading true
+  const { groqKey, geminiKey, setModalOpen } = useApiKeys();
 
   // Timer Ref
   const nextRoundRef = useRef<NodeJS.Timeout | null>(null);
@@ -182,7 +184,10 @@ export default function HeadlinesGame() {
       }
 
       // Generate fake headlines using AI
-      const { real, fakes } = await generateFakeHeadlines(randomHeadline.headline);
+      const { real, fakes } = await generateFakeHeadlines(randomHeadline.headline, {
+        groq: groqKey || undefined,
+        gemini: geminiKey || undefined
+      });
 
       // Create options array with real + fakes
       const options: HeadlineOption[] = [
@@ -197,9 +202,14 @@ export default function HeadlinesGame() {
       setHeadlines(shuffledOptions);
       setSelectedIndex(null);
       setTimeLeft(30); // Reset timer for new round
-    } catch (error) {
+    } catch (error: any) {
       console.error('Failed to generate round:', error);
-      showToast('Failed to generate headlines. Please try again.', 'error');
+      if (error.message.includes('API key not configured') || error.message.includes('401')) {
+        setModalOpen(true);
+        // Don't show toast, just open modal
+      } else {
+        showToast('Failed to generate headlines. Please try again.', 'error');
+      }
     } finally {
       setGeneratingHeadlines(false);
     }

@@ -201,8 +201,9 @@ export default function VaultInterface() {
 
       if (!response.ok) {
         if (response.status === 401) {
-          showToast("API Key Error! Check Settings.", "error");
+          // Prompt for keys without error message
           setModalOpen(true);
+          return;
         }
         throw new Error('Failed to get response');
       }
