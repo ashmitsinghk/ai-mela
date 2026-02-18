@@ -7,6 +7,7 @@ import { supabase } from '@/utils/supabase';
 import { useToast } from '@/contexts/ToastContext';
 import { GAME_CONSTANTS } from '@/utils/game-constants';
 import StandardBet from '@/components/game-ui/StandardBet';
+import { useApiKeys } from '@/contexts/ApiKeyContext';
 
 type GamePhase = 'AUTH' | 'BET' | 'PLAYING' | 'RESULT';
 
@@ -30,6 +31,7 @@ import { useRouter } from 'next/navigation';
 export default function VaultInterface() {
   const router = useRouter();
   const { showToast } = useToast();
+  const { geminiKey, groqKey, setModalOpen } = useApiKeys();
 
   // --- AUTH & USER STATE ---
   const [gamePhase, setGamePhase] = useState<GamePhase>('BET'); // Start at BET
@@ -183,7 +185,11 @@ export default function VaultInterface() {
     try {
       const response = await fetch('/api/interrogate', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          'x-google-api-key': geminiKey || '',
+          'x-groq-api-key': groqKey || ''
+        },
         body: JSON.stringify({
           messages: [...messages, userMessage].map((m) => ({
             role: m.role,
@@ -194,6 +200,10 @@ export default function VaultInterface() {
       });
 
       if (!response.ok) {
+        if (response.status === 401) {
+          showToast("API Key Error! Check Settings.", "error");
+          setModalOpen(true);
+        }
         throw new Error('Failed to get response');
       }
 

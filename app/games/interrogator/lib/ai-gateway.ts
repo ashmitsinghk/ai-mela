@@ -21,6 +21,12 @@ export interface ProviderConfig {
   threshold: number; // Switch when quota drops below this
 }
 
+export interface ApiKeys {
+  gemini?: string;
+  groq?: string;
+  github?: string;
+}
+
 // Session state for tracking active provider
 let currentProviderIndex = 0;
 let providerQuotas: Map<AIProvider, number> = new Map([
@@ -63,16 +69,16 @@ export class AIGateway {
     ];
   }
 
-  private async callGemini(provider: ProviderConfig, messages: Array<{ role: string; content: string }>): Promise<AIResponse> {
+  private async callGemini(provider: ProviderConfig, messages: Array<{ role: string; content: string }>, apiKey: string): Promise<AIResponse> {
     const systemMessage = messages.find(m => m.role === 'system')?.content || '';
     const userMessages = messages.filter(m => m.role !== 'system');
-    
+
     const contents = userMessages.map(msg => ({
       role: msg.role === 'assistant' ? 'model' : 'user',
       parts: [{ text: msg.content }]
     }));
 
-    const response = await fetch(`${provider.endpoint}?key=${provider.apiKey}`, {
+    const response = await fetch(`${provider.endpoint}?key=${apiKey}`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -107,11 +113,11 @@ export class AIGateway {
     };
   }
 
-  private async callGroq(provider: ProviderConfig, messages: Array<{ role: string; content: string }>): Promise<AIResponse> {
+  private async callGroq(provider: ProviderConfig, messages: Array<{ role: string; content: string }>, apiKey: string): Promise<AIResponse> {
     const response = await fetch(provider.endpoint, {
       method: 'POST',
       headers: {
-        'Authorization': `Bearer ${provider.apiKey}`,
+        'Authorization': `Bearer ${apiKey}`,
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
@@ -147,11 +153,11 @@ export class AIGateway {
     };
   }
 
-  private async callGitHub(provider: ProviderConfig, messages: Array<{ role: string; content: string }>): Promise<AIResponse> {
+  private async callGitHub(provider: ProviderConfig, messages: Array<{ role: string; content: string }>, apiKey: string): Promise<AIResponse> {
     const response = await fetch(provider.endpoint, {
       method: 'POST',
       headers: {
-        'Authorization': `Bearer ${provider.apiKey}`,
+        'Authorization': `Bearer ${apiKey}`,
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
@@ -187,14 +193,14 @@ export class AIGateway {
     };
   }
 
-  private async callProvider(provider: ProviderConfig, messages: Array<{ role: string; content: string }>): Promise<AIResponse> {
+  private async callProvider(provider: ProviderConfig, messages: Array<{ role: string; content: string }>, apiKey: string): Promise<AIResponse> {
     switch (provider.name) {
       case 'gemini':
-        return this.callGemini(provider, messages);
+        return this.callGemini(provider, messages, apiKey);
       case 'groq':
-        return this.callGroq(provider, messages);
+        return this.callGroq(provider, messages, apiKey);
       case 'github':
-        return this.callGitHub(provider, messages);
+        return this.callGitHub(provider, messages, apiKey);
       default:
         throw new Error(`Unknown provider: ${provider.name}`);
     }
@@ -203,7 +209,7 @@ export class AIGateway {
   /**
    * Generate a response with automatic fallback and proactive rate-limit switching
    */
-  async generate(messages: Array<{ role: string; content: string }>): Promise<AIResponse> {
+  async generate(messages: Array<{ role: string; content: string }>, apiKeys?: ApiKeys): Promise<AIResponse> {
     let switchedProvider = false;
 
     // Check if current provider is below threshold, switch proactively
@@ -217,15 +223,23 @@ export class AIGateway {
     // Try providers in sequence starting from current index
     for (let i = currentProviderIndex; i < this.providers.length; i++) {
       const provider = this.providers[i];
-      
-      if (!provider.apiKey) {
+
+      // Determine effective API key (runtime override or default)
+      let effectiveKey = provider.apiKey;
+      if (apiKeys) {
+        if (provider.name === 'gemini' && apiKeys.gemini) effectiveKey = apiKeys.gemini;
+        if (provider.name === 'groq' && apiKeys.groq) effectiveKey = apiKeys.groq;
+        if (provider.name === 'github' && apiKeys.github) effectiveKey = apiKeys.github;
+      }
+
+      if (!effectiveKey) {
         console.log(`⚠️ Skipping ${provider.name}: No API key configured`);
         continue;
       }
 
       try {
         console.log(`🔄 Attempting ${provider.name}... (Quota: ${provider.remainingQuota})`);
-        const response = await this.callProvider(provider, messages);
+        const response = await this.callProvider(provider, messages, effectiveKey);
 
         // Check if we need to switch for next request
         if (response.remainingQuota !== undefined && response.remainingQuota < provider.threshold) {

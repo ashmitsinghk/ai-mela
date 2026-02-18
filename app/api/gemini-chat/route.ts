@@ -1,12 +1,27 @@
 import { GoogleGenerativeAI } from "@google/generative-ai";
 import { NextRequest, NextResponse } from "next/server";
 
-// Initialize Gemini
-const genAI = new GoogleGenerativeAI(process.env.GOOGLE_API_KEY || "");
+// Initialize Gemini inside the handler now
+// const genAI = new GoogleGenerativeAI(process.env.GOOGLE_API_KEY || "");
 
 export async function POST(req: NextRequest) {
     let messages: any[] = [];
+    let groqKey: string | null = null;
+
     try {
+        const apiKey = req.headers.get("x-google-api-key") || process.env.GOOGLE_API_KEY || "";
+        groqKey = req.headers.get("x-groq-api-key") || process.env.GROQ_API_KEY || ""; // For fallback
+
+        if (!apiKey) {
+            // If no Gemini key, try fallback immediately or error out?
+            // Let's error out if no key provided for the primary service
+            return NextResponse.json(
+                { error: "Gemini API Key is required" },
+                { status: 401 }
+            );
+        }
+
+        const genAI = new GoogleGenerativeAI(apiKey);
         const body = await req.json();
         messages = body.messages;
 
@@ -67,7 +82,10 @@ export async function POST(req: NextRequest) {
 
             const groqResponse = await fetch(`${protocol}//${host}/api/groq`, {
                 method: "POST",
-                headers: { "Content-Type": "application/json" },
+                headers: {
+                    "Content-Type": "application/json",
+                    "x-groq-api-key": groqKey || ""
+                },
                 body: JSON.stringify({ messages }),
             });
 

@@ -40,6 +40,11 @@ export async function POST(req: NextRequest) {
     }
 
     const gateway = getAIGateway();
+    const apiKeys = {
+      gemini: req.headers.get('x-google-api-key') || undefined,
+      groq: req.headers.get('x-groq-api-key') || undefined,
+      github: req.headers.get('x-github-token') || undefined,
+    };
 
     // Reset quotas if requested (for testing)
     if (resetQuotas) {
@@ -70,7 +75,7 @@ export async function POST(req: NextRequest) {
     ];
 
     // Generate response with automatic fallback
-    const response = await gateway.generate(fullMessages);
+    const response = await gateway.generate(fullMessages, apiKeys);
 
     // Check if the AI accidentally revealed the secret
     const content = response.content.toLowerCase();

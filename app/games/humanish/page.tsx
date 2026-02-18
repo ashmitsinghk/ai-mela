@@ -5,6 +5,7 @@ import { Loader2, Coins } from "lucide-react";
 import { supabase } from '@/utils/supabase';
 import { GAME_CONSTANTS } from '@/utils/game-constants';
 import StandardBet from '@/components/game-ui/StandardBet';
+import { useApiKeys } from '@/contexts/ApiKeyContext';
 
 type Message = {
   sender: "me" | "partner";
@@ -25,6 +26,7 @@ export default function HumanishGame() {
   const [playerData, setPlayerData] = useState<{ name: string | null; stonks: number } | null>(null);
   const [loading, setLoading] = useState(true); // Start loading true
   const [authError, setAuthError] = useState("");
+  const { geminiKey, groqKey, setModalOpen } = useApiKeys();
 
   // ... (rest of state)
 
@@ -282,11 +284,23 @@ export default function HumanishGame() {
 
       const response = await fetch("/api/gemini-chat", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          "x-google-api-key": geminiKey || "",
+          "x-groq-api-key": groqKey || ""
+        },
         body: JSON.stringify({ messages: messagesToSend }),
       });
 
       const data = await response.json();
+
+      if (!response.ok) {
+        if (response.status === 401) {
+          setModalOpen(true);
+          // Show a system message or toast?
+          setMessages(prev => [...prev, { sender: "partner", text: "[SYSTEM]: API Key Error. Please check settings." }]);
+        }
+      }
 
       if (data.reply) {
         const baseDelay = 500 + Math.random() * 500;

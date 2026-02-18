@@ -1,12 +1,20 @@
 import Groq from "groq-sdk";
 import { NextRequest, NextResponse } from "next/server";
 
-const groq = new Groq({
-  apiKey: process.env.GROQ_API_KEY,
-});
-
 export async function POST(req: NextRequest) {
   try {
+    const apiKey = req.headers.get("x-groq-api-key") || process.env.GROQ_API_KEY;
+
+    if (!apiKey) {
+      return NextResponse.json(
+        { error: "Groq API Key (Vision) is required" },
+        { status: 401 }
+      );
+    }
+
+    const groq = new Groq({
+      apiKey: apiKey,
+    });
     const { imageUrl } = await req.json();
 
     if (!imageUrl) {

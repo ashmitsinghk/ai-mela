@@ -2,6 +2,8 @@ import type { Metadata } from 'next';
 import { Outfit, Archivo_Black, Share_Tech_Mono } from 'next/font/google';
 import './globals.css';
 import { ToastProvider } from '@/contexts/ToastContext';
+import { ApiKeyProvider } from '@/contexts/ApiKeyContext';
+import ApiKeySettings from '@/components/ApiKeySettings';
 
 const outfit = Outfit({
   subsets: ['latin'],
@@ -39,7 +41,10 @@ export default function RootLayout({
         className={`${outfit.variable} ${archivoBlack.variable} ${shareTechMono.variable} antialiased`}
       >
         <ToastProvider>
-          {children}
+          <ApiKeyProvider>
+            {children}
+            <ApiKeySettings />
+          </ApiKeyProvider>
         </ToastProvider>
       </body>
     </html>

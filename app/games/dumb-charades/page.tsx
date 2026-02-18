@@ -8,6 +8,7 @@ import { supabase } from '@/utils/supabase';
 import { useToast } from '@/contexts/ToastContext';
 import { GAME_CONSTANTS } from '@/utils/game-constants';
 import StandardBet from '@/components/game-ui/StandardBet';
+import { useApiKeys } from '@/contexts/ApiKeyContext';
 
 type GamePhase = 'AUTH' | 'BET' | 'PLAYING' | 'RESULT';
 
@@ -21,6 +22,7 @@ export default function DumbCharadesGame() {
   const [uid, setUid] = useState('');
   const [playerData, setPlayerData] = useState<{ name: string | null; stonks: number } | null>(null);
   const [authLoading, setAuthLoading] = useState(true); // Start loading true
+  const { groqKey, setModalOpen } = useApiKeys();
 
   // ... (rest of state)
 
@@ -212,7 +214,10 @@ export default function DumbCharadesGame() {
       // Generate 3 options (1 correct + 2 decoys) using Groq
       const response = await fetch('/api/groq', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          'x-groq-api-key': groqKey || ''
+        },
         body: JSON.stringify({
           messages: [{
             sender: 'system',
@@ -221,7 +226,13 @@ export default function DumbCharadesGame() {
         }),
       });
 
-      if (!response.ok) throw new Error('Failed to generate options from API');
+      if (!response.ok) {
+        if (response.status === 401) {
+          showToast("API Key Missing or Invalid! Please check settings.", "error");
+          setModalOpen(true);
+        }
+        throw new Error('Failed to generate options from API');
+      }
 
       const result = await response.json();
       let options: string[];
